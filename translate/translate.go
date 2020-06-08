@@ -13,7 +13,8 @@ import (
 //
 // The translation functions internally panic, which gets caught by File
 type Translator struct {
-	buf *bytes.Buffer
+	buf         *bytes.Buffer
+	indentLevel int
 }
 
 func NewTranslator() *Translator {
@@ -65,7 +66,13 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.BinaryCmd:
 		t.binaryCmd(c)
 	case *syntax.Block:
-		unsupported(c)
+		// TODO: Maybe need begin/end here, sometimes? Not for function
+		for i, stmt := range c.Stmts {
+			if i > 0 {
+				t.nl()
+			}
+			t.stmt(stmt)
+		}
 	case *syntax.CallExpr:
 		t.callExpr(c)
 	case *syntax.CaseClause:
@@ -77,21 +84,24 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.ForClause:
 		unsupported(c)
 	case *syntax.FuncDecl:
-		unsupported(c)
+		t.printf("function %s", c.Name.Value)
+		t.indent()
+		t.stmt(c.Body)
+		t.outdent()
+		t.str("end")
 	case *syntax.IfClause:
 		unsupported(c)
 	case *syntax.LetClause:
 		unsupported(c)
 	case *syntax.Subshell:
-		t.str("eval ")
-		t.capture(func() {
-			for i, s := range c.Stmts {
-				if i > 0 {
-					t.str("; ")
-				}
-				t.stmt(s)
+		t.str("begin; ")
+		for i, s := range c.Stmts {
+			if i > 0 {
+				t.str("; ")
 			}
-		})
+			t.stmt(s)
+		}
+		t.str("; end")
 	case *syntax.TestClause:
 		unsupported(c)
 	case *syntax.TimeClause:
@@ -185,6 +195,10 @@ func (t *Translator) word(w *syntax.Word) {
 
 var specialVariables = map[string]string{
 	"?": "$status",
+	"!": "%last",
+	"$": "%self",
+	"*": "$argv",
+	"@": "$argv",
 }
 
 func (t *Translator) wordPart(wp syntax.WordPart) {
@@ -281,7 +295,19 @@ func (t *Translator) printf(format string, arg ...interface{}) {
 	fmt.Fprintf(t.buf, format, arg...)
 }
 
+func (t *Translator) indent() {
+	t.indentLevel++
+	t.nl()
+}
+
+func (t *Translator) outdent() {
+	t.indentLevel--
+	t.nl()
+}
+
 func (t *Translator) nl() {
 	t.buf.WriteRune('\n')
-	// TODO: indent
+	for i := 0; i < t.indentLevel; i++ {
+		t.str("  ")
+	}
 }
