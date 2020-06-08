@@ -94,14 +94,15 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.LetClause:
 		unsupported(c)
 	case *syntax.Subshell:
-		t.str("begin; ")
-		for i, s := range c.Stmts {
-			if i > 0 {
-				t.str("; ")
+		t.str("fish -c ")
+		t.capture(func() {
+			for i, s := range c.Stmts {
+				if i > 0 {
+					t.str("; ")
+				}
+				t.stmt(s)
 			}
-			t.stmt(s)
-		}
-		t.str("; end")
+		})
 	case *syntax.TestClause:
 		unsupported(c)
 	case *syntax.TimeClause:
