@@ -82,8 +82,6 @@ func (t *Translator) command(c syntax.Command) {
 		}
 		t.str("for ")
 		switch l := c.Loop.(type) {
-		case *syntax.CStyleLoop:
-			unsupported(c)
 		case *syntax.WordIter:
 			t.printf("%s in", l.Name.Value)
 			if l.InPos.IsValid() {
@@ -94,9 +92,11 @@ func (t *Translator) command(c syntax.Command) {
 			} else {
 				unsupported(c)
 			}
+		default:
+			unsupported(c)
 		}
 		t.indent()
-		t.stmts(c.Do)
+		t.body(c.Do)
 		t.outdent()
 		t.str("end")
 	case *syntax.FuncDecl:
@@ -117,9 +117,18 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.TestClause:
 		unsupported(c)
 	case *syntax.TimeClause:
-		unsupported(c)
+		t.str("time ")
+		t.stmt(c.Stmt)
 	case *syntax.WhileClause:
-		unsupported(c)
+		t.str("while ")
+		if c.Until {
+			t.str("not ")
+		}
+		t.stmts(c.Cond)
+		t.indent()
+		t.body(c.Do)
+		t.outdent()
+		t.str("end")
 	default:
 		unsupported(c)
 	}

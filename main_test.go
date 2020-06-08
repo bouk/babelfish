@@ -49,5 +49,15 @@ for i in a b c ; do
   if [ -d "$i/lib/aspell" ]; then
     export ASPELL_CONF="dict-dir $i/lib/aspell"
   fi
+	echo yes
+done
+time sleep 1
+while true; do
+	echo 1
+	echo 2
+done
+until true; do
+	echo 1
+	echo 2
 done
 `
