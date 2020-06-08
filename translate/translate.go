@@ -77,7 +77,28 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.DeclClause:
 		t.declClause(c)
 	case *syntax.ForClause:
-		unsupported(c)
+		if c.Select {
+			unsupported(c)
+		}
+		t.str("for ")
+		switch l := c.Loop.(type) {
+		case *syntax.CStyleLoop:
+			unsupported(c)
+		case *syntax.WordIter:
+			t.printf("%s in", l.Name.Value)
+			if l.InPos.IsValid() {
+				for _, w := range l.Items {
+					t.str(" ")
+					t.word(w)
+				}
+			} else {
+				unsupported(c)
+			}
+		}
+		t.indent()
+		t.stmts(c.Do)
+		t.outdent()
+		t.str("end")
 	case *syntax.FuncDecl:
 		t.printf("function %s", c.Name.Value)
 		t.indent()
@@ -127,7 +148,6 @@ func (t *Translator) ifClause(i *syntax.IfClause, elif bool) {
 		t.outdent()
 	}
 	t.str("end")
-	t.nl()
 }
 
 func (t *Translator) stmts(s syntax.StmtList) {

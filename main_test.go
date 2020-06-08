@@ -45,4 +45,9 @@ else
 	true
 fi
 unset ASPELL_CONF
+for i in a b c ; do
+  if [ -d "$i/lib/aspell" ]; then
+    export ASPELL_CONF="dict-dir $i/lib/aspell"
+  fi
+done
 `
