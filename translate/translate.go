@@ -9,6 +9,9 @@ import (
 	"mvdan.cc/sh/syntax"
 )
 
+// Translator
+//
+// The translation functions internally panic, which gets caught by File
 type Translator struct {
 	buf bytes.Buffer
 }
@@ -21,79 +24,89 @@ func (t *Translator) WriteTo(w io.Writer) (int64, error) {
 	return t.buf.WriteTo(w)
 }
 
-func (t *Translator) File(f *syntax.File) error {
-	for _, stmt := range f.Stmts {
-		if err := t.Stmt(stmt); err != nil {
-			return err
+func (t *Translator) File(f *syntax.File) (err error) {
+	// So I don't have to write if err all the time
+	defer func() {
+		if v := recover(); v != nil {
+			if perr, ok := v.(error); ok {
+				err = perr
+				return
+			}
+			panic(v)
 		}
+	}()
+
+	for _, stmt := range f.Stmts {
+		t.stmt(stmt)
 		t.str("\n")
 	}
 
 	for _, comment := range f.Last {
-		if err := t.Comment(&comment); err != nil {
-			return err
-		}
+		t.comment(&comment)
 	}
 
 	return nil
 }
 
-func (t *Translator) Stmt(s *syntax.Stmt) error {
+func (t *Translator) stmt(s *syntax.Stmt) {
 	for _, comment := range s.Comments {
-		if err := t.Comment(&comment); err != nil {
-			return err
-		}
+		t.comment(&comment)
 	}
 
-	return t.Command(s.Cmd)
+	t.command(s.Cmd)
 }
 
-type UnsupportedError struct {
-	Node syntax.Node
-}
-
-func (u *UnsupportedError) Error() string {
-	return fmt.Sprintf("unsupported: %#v", u.Node)
-}
-
-func (t *Translator) Command(c syntax.Command) error {
+func (t *Translator) command(c syntax.Command) {
 	switch c := c.(type) {
 	case *syntax.ArithmCmd:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.BinaryCmd:
-		return &UnsupportedError{c}
+		t.binaryCmd(c)
 	case *syntax.Block:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.CallExpr:
-		return t.CallExpr(c)
+		t.callExpr(c)
 	case *syntax.CaseClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.CoprocClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.DeclClause:
-		return t.DeclClause(c)
+		t.declClause(c)
 	case *syntax.ForClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.FuncDecl:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.IfClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.LetClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.Subshell:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.TestClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.TimeClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	case *syntax.WhileClause:
-		return &UnsupportedError{c}
+		unsupported(c)
 	default:
-		return &UnsupportedError{c}
+		unsupported(c)
 	}
 }
 
-func (t *Translator) CallExpr(c *syntax.CallExpr) error {
+func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
+	switch c.Op {
+	case syntax.AndStmt:
+		unsupported(c)
+	case syntax.OrStmt:
+		unsupported(c)
+	case syntax.Pipe:
+	case syntax.PipeAll:
+		unsupported(c)
+	}
+
+}
+
+func (t *Translator) callExpr(c *syntax.CallExpr) {
 	if len(c.Args) == 0 {
 		// assignment
 		for n, a := range c.Assigns {
@@ -102,12 +115,8 @@ func (t *Translator) CallExpr(c *syntax.CallExpr) error {
 			}
 
 			t.printf("set %s ", a.Name.Value)
-			if err := t.Word(a.Value); err != nil {
-				return err
-			}
+			t.word(a.Value)
 		}
-
-		return nil
 	} else {
 		// call
 		if len(c.Assigns) > 0 {
@@ -117,9 +126,7 @@ func (t *Translator) CallExpr(c *syntax.CallExpr) error {
 					t.printf("-u %s ", a.Name.Value)
 				} else {
 					t.printf("%s=", a.Name.Value)
-					if err := t.Word(a.Value); err != nil {
-						return err
-					}
+					t.word(a.Value)
 					t.str(" ")
 				}
 			}
@@ -129,15 +136,12 @@ func (t *Translator) CallExpr(c *syntax.CallExpr) error {
 			if i > 0 {
 				t.str(" ")
 			}
-			if err := t.Word(a); err != nil {
-				return err
-			}
+			t.word(a)
 		}
-		return nil
 	}
 }
 
-func (t *Translator) DeclClause(c *syntax.DeclClause) error {
+func (t *Translator) declClause(c *syntax.DeclClause) {
 	var prefix string
 	if c.Variant != nil {
 		switch c.Variant.Value {
@@ -146,7 +150,7 @@ func (t *Translator) DeclClause(c *syntax.DeclClause) error {
 		case "local":
 			prefix = " -l"
 		default:
-			return &UnsupportedError{c}
+			unsupported(c)
 		}
 	}
 
@@ -155,91 +159,80 @@ func (t *Translator) DeclClause(c *syntax.DeclClause) error {
 		if a.Value == nil {
 			t.printf("$%s", a.Name.Value)
 		} else {
-			if err := t.Word(a.Value); err != nil {
-				return err
-			}
+			t.word(a.Value)
 		}
 	}
-
-	return nil
 }
 
-func (t *Translator) Word(w *syntax.Word) error {
+func (t *Translator) word(w *syntax.Word) {
 	for _, part := range w.Parts {
-		if err := t.WordPart(part); err != nil {
-			return err
-		}
+		t.wordPart(part)
 	}
-	return nil
 }
 
-func (t *Translator) WordPart(wp syntax.WordPart) error {
+var specialVariables = map[string]string{
+	"?": "$status",
+}
+
+func (t *Translator) wordPart(wp syntax.WordPart) {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
 		t.str(wp.Value)
-		return nil
 	case *syntax.SglQuoted:
-		return t.escapedString(wp.Value)
+		t.escapedString(wp.Value)
 	case *syntax.DblQuoted:
 		for _, part := range wp.Parts {
 			switch part := part.(type) {
 			case *syntax.Lit:
-				if err := t.escapedString(part.Value); err != nil {
-					return err
-				}
+				t.escapedString(part.Value)
 			default:
-				if err := t.WordPart(part); err != nil {
-					return err
-				}
+				t.wordPart(part)
 			}
 		}
-		return nil
 	case *syntax.ParamExp:
-		if wp.Short {
-			t.printf("$%s", wp.Param.Value)
-			return nil
-		}
-		if !wp.Excl && !wp.Length && !wp.Width {
-			t.printf("{$%s}", wp.Param.Value)
-			return nil
-		}
-		return &UnsupportedError{wp}
+		t.paramExp(wp)
 	case *syntax.CmdSubst:
 		t.str("(")
 		for i, s := range wp.Stmts {
 			if i > 0 {
 				t.str("; ")
 			}
-
-			if err := t.Stmt(s); err != nil {
-				return err
-			}
+			t.stmt(s)
 		}
 		t.str(")")
-		return nil
 	case *syntax.ArithmExp:
-		return &UnsupportedError{wp}
+		unsupported(wp)
 	case *syntax.ProcSubst:
-		return &UnsupportedError{wp}
+		unsupported(wp)
 	case *syntax.ExtGlob:
-		return &UnsupportedError{wp}
+		unsupported(wp)
 	default:
-		return &UnsupportedError{wp}
+		unsupported(wp)
 	}
+}
+
+func (t *Translator) paramExp(p *syntax.ParamExp) {
+	if p.Short {
+		t.printf("$%s", p.Param.Value)
+		return
+	}
+	if !p.Excl && !p.Length && !p.Width {
+		t.printf("{$%s}", p.Param.Value)
+		return
+	}
+	unsupported(p)
 }
 
 var stringReplacer = strings.NewReplacer("\\", "\\\\", "'", "\\'")
 
-func (t *Translator) escapedString(literal string) error {
+func (t *Translator) escapedString(literal string) {
 	t.str("'")
 	stringReplacer.WriteString(&t.buf, literal)
 	t.str("'")
-	return nil
 }
 
-func (t *Translator) Comment(c *syntax.Comment) error {
+func (t *Translator) comment(c *syntax.Comment) {
 	t.printf("#%s\n", c.Text)
-	return nil
 }
 
 func (t *Translator) str(s string) {
