@@ -25,6 +25,7 @@ func perform(name string, in io.Reader) error {
 	t := translate.NewTranslator()
 	err = t.File(output)
 	if err, _ := err.(*translate.UnsupportedError); err != nil {
+		syntax.NewPrinter().Print(errOut, err.Node)
 		fmt.Fprintln(errOut)
 		syntax.DebugPrint(errOut, err.Node)
 		fmt.Fprintln(errOut)

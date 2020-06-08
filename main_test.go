@@ -29,5 +29,5 @@ export PAGER="less -R"
 echo 123 | source
 cat <(echo 123)
 cat < test.bash
-echo $(cat test.bash | cool | (cool | cool))
+echo $(cat test.bash | cool | (cool | cool | ( echo 'cool' | cool)))
 `

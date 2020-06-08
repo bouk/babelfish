@@ -13,11 +13,13 @@ import (
 //
 // The translation functions internally panic, which gets caught by File
 type Translator struct {
-	buf bytes.Buffer
+	buf *bytes.Buffer
 }
 
 func NewTranslator() *Translator {
-	return &Translator{}
+	return &Translator{
+		buf: &bytes.Buffer{},
+	}
 }
 
 func (t *Translator) WriteTo(w io.Writer) (int64, error) {
@@ -38,7 +40,7 @@ func (t *Translator) File(f *syntax.File) (err error) {
 
 	for _, stmt := range f.Stmts {
 		t.stmt(stmt)
-		t.str("\n")
+		t.nl()
 	}
 
 	for _, comment := range f.Last {
@@ -81,7 +83,15 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.LetClause:
 		unsupported(c)
 	case *syntax.Subshell:
-		unsupported(c)
+		t.str("eval ")
+		t.capture(func() {
+			for i, s := range c.Stmts {
+				if i > 0 {
+					t.str("; ")
+				}
+				t.stmt(s)
+			}
+		})
 	case *syntax.TestClause:
 		unsupported(c)
 	case *syntax.TimeClause:
@@ -100,10 +110,13 @@ func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 	case syntax.OrStmt:
 		unsupported(c)
 	case syntax.Pipe:
+		t.stmt(c.X)
+		t.str(" | ")
+		t.stmt(c.Y)
+		return
 	case syntax.PipeAll:
 		unsupported(c)
 	}
-	unsupported(c)
 }
 
 func (t *Translator) callExpr(c *syntax.CallExpr) {
@@ -203,7 +216,20 @@ func (t *Translator) wordPart(wp syntax.WordPart) {
 	case *syntax.ArithmExp:
 		unsupported(wp)
 	case *syntax.ProcSubst:
-		unsupported(wp)
+		t.str("(")
+		for i, s := range wp.Stmts {
+			if i > 0 {
+				t.str("; ")
+			}
+			t.stmt(s)
+		}
+		switch wp.Op {
+		case syntax.CmdIn:
+			t.str(" | psub")
+		case syntax.CmdOut:
+			unsupported(wp)
+		}
+		t.str(")")
 	case *syntax.ExtGlob:
 		unsupported(wp)
 	default:
@@ -225,14 +251,26 @@ func (t *Translator) paramExp(p *syntax.ParamExp) {
 
 var stringReplacer = strings.NewReplacer("\\", "\\\\", "'", "\\'")
 
+func (t *Translator) capture(f func()) {
+	oldBuf := t.buf
+	newBuf := &bytes.Buffer{}
+	t.buf = newBuf
+	defer func() {
+		t.buf = oldBuf
+		t.escapedString(newBuf.String())
+	}()
+	f()
+}
+
 func (t *Translator) escapedString(literal string) {
 	t.str("'")
-	stringReplacer.WriteString(&t.buf, literal)
+	stringReplacer.WriteString(t.buf, literal)
 	t.str("'")
 }
 
 func (t *Translator) comment(c *syntax.Comment) {
-	t.printf("#%s\n", c.Text)
+	t.printf("#%s", c.Text)
+	t.nl()
 }
 
 func (t *Translator) str(s string) {
@@ -240,5 +278,10 @@ func (t *Translator) str(s string) {
 }
 
 func (t *Translator) printf(format string, arg ...interface{}) {
-	fmt.Fprintf(&t.buf, format, arg...)
+	fmt.Fprintf(t.buf, format, arg...)
+}
+
+func (t *Translator) nl() {
+	t.buf.WriteRune('\n')
+	// TODO: indent
 }
