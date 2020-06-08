@@ -103,7 +103,7 @@ func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 	case syntax.PipeAll:
 		unsupported(c)
 	}
-
+	unsupported(c)
 }
 
 func (t *Translator) callExpr(c *syntax.CallExpr) {

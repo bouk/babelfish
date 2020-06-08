@@ -4,6 +4,7 @@ import (
 	"bou.ke/babelfish/translate"
 	"flag"
 	"fmt"
+	"io"
 	"mvdan.cc/sh/syntax"
 	"os"
 )
@@ -12,34 +13,45 @@ type Options struct {
 	Dump bool
 }
 
-func do() error {
-	var o Options
-	flag.BoolVar(&o.Dump, "dump", false, "Dump the AST")
-	flag.Parse()
-	f := os.Stdin
+func perform(name string, in io.Reader) error {
+	out := os.Stdout
+	errOut := os.Stderr
 	p := syntax.NewParser(syntax.KeepComments, syntax.Variant(syntax.LangBash))
-	output, err := p.Parse(f, f.Name())
+	output, err := p.Parse(in, name)
 	if err != nil {
 		return err
-	}
-
-	if o.Dump {
-		syntax.DebugPrint(os.Stderr, output)
-		fmt.Fprintln(os.Stderr)
-		return nil
 	}
 
 	t := translate.NewTranslator()
 	err = t.File(output)
 	if err, _ := err.(*translate.UnsupportedError); err != nil {
-		fmt.Fprintln(os.Stderr)
-		syntax.DebugPrint(os.Stderr, err.Node)
-		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(errOut)
+		syntax.DebugPrint(errOut, err.Node)
+		fmt.Fprintln(errOut)
 	}
 	if err == nil {
-		_, err = t.WriteTo(os.Stdout)
+		_, err = t.WriteTo(out)
 	}
 	return err
+}
+
+func do() error {
+	var o Options
+	flag.BoolVar(&o.Dump, "dump", false, "Dump the AST")
+	flag.Parse()
+
+	f := os.Stdin
+	if o.Dump {
+		p := syntax.NewParser(syntax.KeepComments, syntax.Variant(syntax.LangBash))
+		output, err := p.Parse(f, f.Name())
+		if err != nil {
+			return err
+		}
+		syntax.DebugPrint(os.Stderr, output)
+		fmt.Fprintln(os.Stderr)
+		return nil
+	}
+	return perform(f.Name(), f)
 }
 
 func main() {
