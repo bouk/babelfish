@@ -1,6 +1,7 @@
 package translate
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -9,7 +10,15 @@ import (
 )
 
 type Translator struct {
-	Output io.Writer
+	buf bytes.Buffer
+}
+
+func NewTranslator() *Translator {
+	return &Translator{}
+}
+
+func (t *Translator) WriteTo(w io.Writer) (int64, error) {
+	return t.buf.WriteTo(w)
 }
 
 func (t *Translator) File(f *syntax.File) error {
@@ -17,7 +26,7 @@ func (t *Translator) File(f *syntax.File) error {
 		if err := t.Stmt(stmt); err != nil {
 			return err
 		}
-		io.WriteString(t.Output, "\n")
+		t.str("\n")
 	}
 
 	for _, comment := range f.Last {
@@ -89,10 +98,10 @@ func (t *Translator) CallExpr(c *syntax.CallExpr) error {
 		// assignment
 		for n, a := range c.Assigns {
 			if n > 0 {
-				io.WriteString(t.Output, "; ")
+				t.str("; ")
 			}
 
-			fmt.Fprintf(t.Output, "set %s ", a.Name.Value)
+			t.printf("set %s ", a.Name.Value)
 			if err := t.Word(a.Value); err != nil {
 				return err
 			}
@@ -102,23 +111,23 @@ func (t *Translator) CallExpr(c *syntax.CallExpr) error {
 	} else {
 		// call
 		if len(c.Assigns) > 0 {
-			io.WriteString(t.Output, "env ")
+			t.str("env ")
 			for _, a := range c.Assigns {
 				if a.Value == nil {
-					fmt.Fprintf(t.Output, "-u %s ", a.Name.Value)
+					t.printf("-u %s ", a.Name.Value)
 				} else {
-					fmt.Fprintf(t.Output, "%s=", a.Name.Value)
+					t.printf("%s=", a.Name.Value)
 					if err := t.Word(a.Value); err != nil {
 						return err
 					}
-					io.WriteString(t.Output, " ")
+					t.str(" ")
 				}
 			}
 		}
 
 		for i, a := range c.Args {
 			if i > 0 {
-				io.WriteString(t.Output, " ")
+				t.str(" ")
 			}
 			if err := t.Word(a); err != nil {
 				return err
@@ -142,9 +151,9 @@ func (t *Translator) DeclClause(c *syntax.DeclClause) error {
 	}
 
 	for _, a := range c.Assigns {
-		fmt.Fprintf(t.Output, "set%s %s ", prefix, a.Name.Value)
+		t.printf("set%s %s ", prefix, a.Name.Value)
 		if a.Value == nil {
-			fmt.Fprintf(t.Output, "$%s", a.Name.Value)
+			t.printf("$%s", a.Name.Value)
 		} else {
 			if err := t.Word(a.Value); err != nil {
 				return err
@@ -167,7 +176,7 @@ func (t *Translator) Word(w *syntax.Word) error {
 func (t *Translator) WordPart(wp syntax.WordPart) error {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
-		io.WriteString(t.Output, wp.Value)
+		t.str(wp.Value)
 		return nil
 	case *syntax.SglQuoted:
 		return t.escapedString(wp.Value)
@@ -187,26 +196,26 @@ func (t *Translator) WordPart(wp syntax.WordPart) error {
 		return nil
 	case *syntax.ParamExp:
 		if wp.Short {
-			fmt.Fprintf(t.Output, "$%s", wp.Param.Value)
+			t.printf("$%s", wp.Param.Value)
 			return nil
 		}
 		if !wp.Excl && !wp.Length && !wp.Width {
-			fmt.Fprintf(t.Output, "{$%s}", wp.Param.Value)
+			t.printf("{$%s}", wp.Param.Value)
 			return nil
 		}
 		return &UnsupportedError{wp}
 	case *syntax.CmdSubst:
-		io.WriteString(t.Output, "(")
+		t.str("(")
 		for i, s := range wp.Stmts {
 			if i > 0 {
-				io.WriteString(t.Output, "; ")
+				t.str("; ")
 			}
 
 			if err := t.Stmt(s); err != nil {
 				return err
 			}
 		}
-		io.WriteString(t.Output, ")")
+		t.str(")")
 		return nil
 	case *syntax.ArithmExp:
 		return &UnsupportedError{wp}
@@ -222,13 +231,21 @@ func (t *Translator) WordPart(wp syntax.WordPart) error {
 var stringReplacer = strings.NewReplacer("\\", "\\\\", "'", "\\'")
 
 func (t *Translator) escapedString(literal string) error {
-	io.WriteString(t.Output, "'")
-	stringReplacer.WriteString(t.Output, literal)
-	io.WriteString(t.Output, "'")
+	t.str("'")
+	stringReplacer.WriteString(&t.buf, literal)
+	t.str("'")
 	return nil
 }
 
 func (t *Translator) Comment(c *syntax.Comment) error {
-	fmt.Fprintf(t.Output, "#%s\n", c.Text)
+	t.printf("#%s\n", c.Text)
 	return nil
+}
+
+func (t *Translator) str(s string) {
+	t.buf.WriteString(s)
+}
+
+func (t *Translator) printf(format string, arg ...interface{}) {
+	fmt.Fprintf(&t.buf, format, arg...)
 }

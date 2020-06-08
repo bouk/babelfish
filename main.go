@@ -22,16 +22,22 @@ func do() error {
 	if err != nil {
 		return err
 	}
+
 	if o.Dump {
-		return syntax.DebugPrint(os.Stdout, output)
+		syntax.DebugPrint(os.Stderr, output)
+		fmt.Fprintln(os.Stderr)
+		return nil
 	}
-	var t translate.Translator
-	t.Output = os.Stdout
+
+	t := translate.NewTranslator()
 	err = t.File(output)
 	if err, _ := err.(*translate.UnsupportedError); err != nil {
-		fmt.Println()
-		syntax.DebugPrint(os.Stdout, err.Node)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
+		syntax.DebugPrint(os.Stderr, err.Node)
+		fmt.Fprintln(os.Stderr)
+	}
+	if err == nil {
+		_, err = t.WriteTo(os.Stdout)
 	}
 	return err
 }
