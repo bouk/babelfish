@@ -258,20 +258,21 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 }
 
 func (t *Translator) word(w *syntax.Word) {
+	only := len(w.Parts) == 1
 	for _, part := range w.Parts {
-		t.wordPart(part)
+		t.wordPart(part, only)
 	}
 }
 
-var specialVariables = map[string]string{
-	"?": "$status",
-	"!": "%last",
-	"$": "%self",
-	"*": "$argv",
-	"@": "$argv",
-}
-
-func (t *Translator) wordPart(wp syntax.WordPart) {
+// wordPart spits out a piece of a Word. The wordparts are placed next to each other, so that they are concatenated into one.
+// NOTE: This 'concatentation' is actually a cartesian product.
+// This means that every part *needs* to return a list with exactly one item.
+// For commands, this means they need to return with just one newline at the end. This means we might need to do something like:
+// (begin; <command>;echo;end | string collect)
+// To ensure there's always one result.
+//
+// only specifies whether this is the only part. This is done so variables and command substitution get expanded.
+func (t *Translator) wordPart(wp syntax.WordPart, only bool) {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
 		t.str(wp.Value)
@@ -283,15 +284,22 @@ func (t *Translator) wordPart(wp syntax.WordPart) {
 			case *syntax.Lit:
 				t.escapedString(part.Value)
 			default:
-				t.wordPart(part)
+				t.wordPart(part, false)
 			}
 		}
 	case *syntax.ParamExp:
-		t.paramExp(wp)
+		t.paramExp(wp, only)
 	case *syntax.CmdSubst:
+		// Need to ensure there's one element returned from the subst
+		if !only {
+			t.str("(echo ")
+		}
 		t.str("(")
 		t.stmts(wp.StmtList)
 		t.str(")")
+		if !only {
+			t.str(")")
+		}
 	case *syntax.ArithmExp:
 		unsupported(wp)
 	case *syntax.ProcSubst:
@@ -311,16 +319,84 @@ func (t *Translator) wordPart(wp syntax.WordPart) {
 	}
 }
 
-func (t *Translator) paramExp(p *syntax.ParamExp) {
-	if p.Short {
-		t.printf("$%s", p.Param.Value)
-		return
+var specialVariables = map[string]string{
+	//"!": "%last", % variables are weird
+	"?": "status",
+	"$": "fish_pid",
+	"*": `argv`, // always quote
+	"@": "argv",
+}
+
+func (t *Translator) paramExp(p *syntax.ParamExp, only bool) {
+	param := p.Param.Value
+
+	if spec, ok := specialVariables[param]; ok {
+		// 🤷
+		if param == "*" {
+			only = false
+		}
+		param = spec
 	}
-	if !p.Excl && !p.Length && !p.Width {
-		t.printf("{$%s}", p.Param.Value)
-		return
+	switch {
+	case p.Excl: // ${!a}
+		unsupported(p)
+	case p.Length: // ${#a}
+		index := p.Index
+		switch p.Param.Value {
+		case "@", "*":
+			index = &syntax.Word{Parts: []syntax.WordPart{p.Param}}
+		}
+		if index != nil {
+			if word, ok := index.(*syntax.Word); ok {
+				switch word.Lit() {
+				case "@", "*":
+					t.printf("(count $%s)", param)
+					return
+				}
+			}
+			unsupported(p)
+		}
+		t.printf(`(string length "$%s")`, param)
+	case p.Index != nil: // ${a[i]}, ${a["k"]}
+		unsupported(p)
+	case p.Width: // ${%a}
+		unsupported(p)
+	case p.Slice != nil: // ${a:x:y}
+		unsupported(p)
+	case p.Repl != nil: // ${a/x/y}
+		unsupported(p)
+	case p.Names != 0: // ${!prefix*} or ${!prefix@}
+		unsupported(p)
+	case p.Exp != nil:
+		switch op := p.Exp.Op; op {
+		case syntax.SubstColPlus:
+			t.printf(`(test -n "$%s" && echo `, param)
+			t.word(p.Exp.Word)
+			t.str(" || echo)")
+		case syntax.SubstPlus:
+			t.printf(`(set -q %s && echo `, param)
+			t.word(p.Exp.Word)
+			t.str(" || echo)")
+		case syntax.SubstColMinus:
+			t.printf(`(test -n "$%s" && echo "$%s" || echo `, param, param)
+			t.word(p.Exp.Word)
+			t.str(")")
+		case syntax.SubstMinus:
+			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
+			t.word(p.Exp.Word)
+			t.str(")")
+		default:
+			unsupported(p)
+		}
+	case p.Short:
+		fallthrough
+	default:
+		if only {
+			t.printf(`$%s`, param)
+		} else {
+			t.printf(`"$%s"`, param)
+		}
 	}
-	unsupported(p)
 }
 
 var stringReplacer = strings.NewReplacer("\\", "\\\\", "'", "\\'")

@@ -38,12 +38,16 @@ if [ -z "$SSH_AUTH_SOCK" ]; then
   export SSH_AUTH_SOCK=$(/bin/gpgconf --list-dirs agent-ssh-socket)
 fi
 if [ -d "/share/gsettings-schemas/name" ]; then
-	export XDG_DATA_DIRS=$XDG_DATA_DIRS${XDG_DATA_DIRS:+:}/share/gsettings-schemas/name
+	export whatevs=$whatevs${whatevs:+:}/share/gsettings-schemas/name
 elif false; then
 	true
 else
 	true
 fi
+echo ${cool+a}
+echo ${cool:+a}
+echo ${cool-a}
+echo ${cool:-a}
 unset ASPELL_CONF
 for i in a b c ; do
   if [ -d "$i/lib/aspell" ]; then
@@ -60,4 +64,10 @@ until true; do
 	echo 1
 	echo 2
 done
+call $me
+echo ${#@}
+echo ${#cool[@]}
+echo ${#cool}
+a=$(ok)
+a="$(ok)"
 `
