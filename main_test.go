@@ -33,4 +33,16 @@ cool() {
 	cat | cat
 }
 echo $(cat test.bash | cool | (cool | cool | ( echo 'cool' | cool)))
+test -e /var/file.sh && source /var/file.sh
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  export SSH_AUTH_SOCK=$(/bin/gpgconf --list-dirs agent-ssh-socket)
+fi
+if [ -d "/share/gsettings-schemas/name" ]; then
+	export XDG_DATA_DIRS=$XDG_DATA_DIRS${XDG_DATA_DIRS:+:}/share/gsettings-schemas/name
+elif false; then
+	true
+else
+	true
+fi
+unset ASPELL_CONF
 `

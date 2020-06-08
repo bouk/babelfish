@@ -67,12 +67,7 @@ func (t *Translator) command(c syntax.Command) {
 		t.binaryCmd(c)
 	case *syntax.Block:
 		// TODO: Maybe need begin/end here, sometimes? Not for function
-		for i, stmt := range c.Stmts {
-			if i > 0 {
-				t.nl()
-			}
-			t.stmt(stmt)
-		}
+		t.body(c.StmtList)
 	case *syntax.CallExpr:
 		t.callExpr(c)
 	case *syntax.CaseClause:
@@ -90,18 +85,13 @@ func (t *Translator) command(c syntax.Command) {
 		t.outdent()
 		t.str("end")
 	case *syntax.IfClause:
-		unsupported(c)
+		t.ifClause(c, false)
 	case *syntax.LetClause:
 		unsupported(c)
 	case *syntax.Subshell:
 		t.str("fish -c ")
 		t.capture(func() {
-			for i, s := range c.Stmts {
-				if i > 0 {
-					t.str("; ")
-				}
-				t.stmt(s)
-			}
+			t.stmts(c.StmtList)
 		})
 	case *syntax.TestClause:
 		unsupported(c)
@@ -114,12 +104,62 @@ func (t *Translator) command(c syntax.Command) {
 	}
 }
 
+func (t *Translator) ifClause(i *syntax.IfClause, elif bool) {
+	if elif {
+		t.str("else if ")
+	} else {
+		t.str("if ")
+	}
+	t.stmts(i.Cond)
+	t.indent()
+	t.body(i.Then)
+	t.outdent()
+	if i.FollowedByElif() {
+		s := i.Else.Stmts[0]
+		t.ifClause(s.Cmd.(*syntax.IfClause), true)
+		return
+	}
+
+	if len(i.Else.Stmts) > 0 {
+		t.str("else")
+		t.indent()
+		t.body(i.Else)
+		t.outdent()
+	}
+	t.str("end")
+	t.nl()
+}
+
+func (t *Translator) stmts(s syntax.StmtList) {
+	for i, s := range s.Stmts {
+		if i > 0 {
+			t.str("; ")
+		}
+		t.stmt(s)
+	}
+}
+
+func (t *Translator) body(s syntax.StmtList) {
+	for i, s := range s.Stmts {
+		if i > 0 {
+			t.nl()
+		}
+		t.stmt(s)
+	}
+}
+
 func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 	switch c.Op {
 	case syntax.AndStmt:
-		unsupported(c)
+		t.stmt(c.X)
+		t.str(" && ")
+		t.stmt(c.Y)
+		return
 	case syntax.OrStmt:
-		unsupported(c)
+		t.stmt(c.X)
+		t.str(" || ")
+		t.stmt(c.Y)
+		return
 	case syntax.Pipe:
 		t.stmt(c.X)
 		t.str(" | ")
@@ -221,23 +261,13 @@ func (t *Translator) wordPart(wp syntax.WordPart) {
 		t.paramExp(wp)
 	case *syntax.CmdSubst:
 		t.str("(")
-		for i, s := range wp.Stmts {
-			if i > 0 {
-				t.str("; ")
-			}
-			t.stmt(s)
-		}
+		t.stmts(wp.StmtList)
 		t.str(")")
 	case *syntax.ArithmExp:
 		unsupported(wp)
 	case *syntax.ProcSubst:
 		t.str("(")
-		for i, s := range wp.Stmts {
-			if i > 0 {
-				t.str("; ")
-			}
-			t.stmt(s)
-		}
+		t.stmts(wp.StmtList)
 		switch wp.Op {
 		case syntax.CmdIn:
 			t.str(" | psub")
