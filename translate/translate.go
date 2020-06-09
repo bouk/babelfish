@@ -115,7 +115,7 @@ func (t *Translator) command(c syntax.Command) {
 			t.stmts(c.StmtList)
 		})
 	case *syntax.TestClause:
-		unsupported(c)
+		t.testClause(c)
 	case *syntax.TimeClause:
 		t.str("time ")
 		t.stmt(c.Stmt)
@@ -131,6 +131,74 @@ func (t *Translator) command(c syntax.Command) {
 		t.str("end")
 	default:
 		unsupported(c)
+	}
+}
+
+func (t *Translator) testClause(c *syntax.TestClause) {
+	t.str("test ")
+	t.testExpr(c.X)
+}
+
+func (t *Translator) testExpr(e syntax.TestExpr) {
+	switch e := e.(type) {
+	case *syntax.BinaryTest:
+		t.testExpr(e.X)
+		switch e.Op {
+		case syntax.AndTest:
+			t.str(" -a ")
+		case syntax.OrTest:
+			t.str(" -o ")
+		case syntax.TsMatch:
+			t.str(" = ")
+		case syntax.TsNoMatch:
+			t.str(" != ")
+		case syntax.TsEql,
+			syntax.TsNeq,
+			syntax.TsLeq,
+			syntax.TsGeq,
+			syntax.TsLss,
+			syntax.TsGtr:
+			t.printf(" %s ", e.Op)
+		default:
+			unsupported(e)
+		}
+		t.testExpr(e.Y)
+	case *syntax.ParenTest:
+		t.str(`\( `)
+		t.testExpr(e.X)
+		t.str(` \)`)
+	case *syntax.UnaryTest:
+		switch e.Op {
+		case syntax.TsExists,
+			syntax.TsRegFile,
+			syntax.TsDirect,
+			syntax.TsCharSp,
+			syntax.TsBlckSp,
+			syntax.TsNmPipe,
+			syntax.TsSocket,
+			syntax.TsSmbLink,
+			syntax.TsSticky,
+			syntax.TsGIDSet,
+			syntax.TsUIDSet,
+			syntax.TsGrpOwn,
+			syntax.TsUsrOwn,
+			syntax.TsRead,
+			syntax.TsWrite,
+			syntax.TsExec,
+			syntax.TsNoEmpty,
+			syntax.TsFdTerm,
+
+			syntax.TsEmpStr,
+			syntax.TsNempStr,
+
+			syntax.TsNot:
+			t.printf("%s ", e.Op)
+		default:
+			unsupported(e)
+		}
+		t.testExpr(e.X)
+	case *syntax.Word:
+		t.word(e, true)
 	}
 }
 
@@ -205,22 +273,25 @@ var builtins = map[string]string{
 }
 
 func (t *Translator) assign(prefix string, a *syntax.Assign) {
+	if a.Append {
+		prefix += " -a"
+	}
 	switch {
 	case a.Naked:
 		t.printf("set%s %s ", prefix, a.Name.Value)
 		t.printf("$%s", a.Name.Value)
 	case a.Array != nil:
-		if len(a.Array.Elems) == 0 {
-			t.printf("set%s %s", prefix, a.Name.Value)
-			return
+		t.printf("set%s %s", prefix, a.Name.Value)
+		for _, el := range a.Array.Elems {
+			if el.Index != nil || el.Value == nil {
+				unsupported(a)
+			}
+			t.str(" ")
+			t.word(el.Value, true)
 		}
-		unsupported(a)
 	case a.Value != nil:
 		t.printf("set%s %s ", prefix, a.Name.Value)
-		t.word(a.Value, false)
-	case a.Append:
-		t.printf("set%s -a %s ", prefix, a.Name.Value)
-		t.word(a.Value, false)
+		t.word(a.Value, true)
 	case a.Index != nil:
 		unsupported(a)
 	}
@@ -311,7 +382,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 			case *syntax.Lit:
 				t.escapedString(part.Value)
 			default:
-				t.wordPart(part, false)
+				t.wordPart(part, true)
 			}
 		}
 	case *syntax.ParamExp:
@@ -391,7 +462,14 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	case p.Slice != nil: // ${a:x:y}
 		unsupported(p)
 	case p.Repl != nil: // ${a/x/y}
-		unsupported(p)
+		t.str("(string replace ")
+		if p.Repl.All {
+			t.str("--all ")
+		}
+		t.word(p.Repl.Orig, true)
+		t.str(" ")
+		t.word(p.Repl.With, true)
+		t.printf(` "$%s")`, param)
 	case p.Names != 0: // ${!prefix*} or ${!prefix@}
 		unsupported(p)
 	case p.Exp != nil:
