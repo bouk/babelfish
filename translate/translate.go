@@ -31,7 +31,7 @@ func (t *Translator) File(f *syntax.File) (err error) {
 	// So I don't have to write if err all the time
 	defer func() {
 		if v := recover(); v != nil {
-			if perr, ok := v.(error); ok {
+			if perr, ok := v.(*UnsupportedError); ok {
 				err = perr
 				return
 			}
@@ -87,7 +87,7 @@ func (t *Translator) command(c syntax.Command) {
 			if l.InPos.IsValid() {
 				for _, w := range l.Items {
 					t.str(" ")
-					t.word(w)
+					t.word(w, false)
 				}
 			} else {
 				unsupported(c)
@@ -199,6 +199,33 @@ func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 	}
 }
 
+var builtins = map[string]string{
+	".":     "source",
+	"unset": "set -e",
+}
+
+func (t *Translator) assign(prefix string, a *syntax.Assign) {
+	switch {
+	case a.Naked:
+		t.printf("set%s %s ", prefix, a.Name.Value)
+		t.printf("$%s", a.Name.Value)
+	case a.Array != nil:
+		if len(a.Array.Elems) == 0 {
+			t.printf("set%s %s", prefix, a.Name.Value)
+			return
+		}
+		unsupported(a)
+	case a.Value != nil:
+		t.printf("set%s %s ", prefix, a.Name.Value)
+		t.word(a.Value, false)
+	case a.Append:
+		t.printf("set%s -a %s ", prefix, a.Name.Value)
+		t.word(a.Value, false)
+	case a.Index != nil:
+		unsupported(a)
+	}
+}
+
 func (t *Translator) callExpr(c *syntax.CallExpr) {
 	if len(c.Args) == 0 {
 		// assignment
@@ -206,30 +233,32 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 			if n > 0 {
 				t.str("; ")
 			}
-
-			t.printf("set %s ", a.Name.Value)
-			t.word(a.Value)
+			t.assign("", a)
 		}
 	} else {
 		// call
 		if len(c.Assigns) > 0 {
-			t.str("env ")
 			for _, a := range c.Assigns {
-				if a.Value == nil {
-					t.printf("-u %s ", a.Name.Value)
-				} else {
-					t.printf("%s=", a.Name.Value)
-					t.word(a.Value)
-					t.str(" ")
+				t.printf("%s=", a.Name.Value)
+				if a.Value != nil {
+					t.word(a.Value, true)
 				}
+				t.str(" ")
 			}
 		}
 
-		for i, a := range c.Args {
-			if i > 0 {
-				t.str(" ")
-			}
-			t.word(a)
+		first := c.Args[0]
+		l := first.Lit()
+		if replacement, ok := builtins[l]; ok {
+			t.str(replacement)
+		} else {
+			t.word(first, false)
+		}
+
+		// TODO: check if we're sourcing/evaling, and insert babelfish
+		for _, a := range c.Args[1:] {
+			t.str(" ")
+			t.word(a, false)
 		}
 	}
 }
@@ -248,19 +277,17 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 	}
 
 	for _, a := range c.Assigns {
-		t.printf("set%s %s ", prefix, a.Name.Value)
-		if a.Value == nil {
-			t.printf("$%s", a.Name.Value)
-		} else {
-			t.word(a.Value)
+		if a.Name == nil {
+			unsupported(c)
 		}
+		t.assign(prefix, a)
 	}
 }
 
-func (t *Translator) word(w *syntax.Word) {
-	only := len(w.Parts) == 1
+func (t *Translator) word(w *syntax.Word, mustQuote bool) {
+	quote := mustQuote || len(w.Parts) > 1
 	for _, part := range w.Parts {
-		t.wordPart(part, only)
+		t.wordPart(part, quote)
 	}
 }
 
@@ -271,8 +298,8 @@ func (t *Translator) word(w *syntax.Word) {
 // (begin; <command>;echo;end | string collect)
 // To ensure there's always one result.
 //
-// only specifies whether this is the only part. This is done so variables and command substitution get expanded.
-func (t *Translator) wordPart(wp syntax.WordPart, only bool) {
+// quote specifies whether this needs to be quoted. This is done so variables and command substitution get expanded.
+func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
 		t.str(wp.Value)
@@ -288,16 +315,16 @@ func (t *Translator) wordPart(wp syntax.WordPart, only bool) {
 			}
 		}
 	case *syntax.ParamExp:
-		t.paramExp(wp, only)
+		t.paramExp(wp, quoted)
 	case *syntax.CmdSubst:
 		// Need to ensure there's one element returned from the subst
-		if !only {
+		if quoted {
 			t.str("(echo ")
 		}
 		t.str("(")
 		t.stmts(wp.StmtList)
 		t.str(")")
-		if !only {
+		if quoted {
 			t.str(")")
 		}
 	case *syntax.ArithmExp:
@@ -327,13 +354,13 @@ var specialVariables = map[string]string{
 	"@": "argv",
 }
 
-func (t *Translator) paramExp(p *syntax.ParamExp, only bool) {
+func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	param := p.Param.Value
 
 	if spec, ok := specialVariables[param]; ok {
 		// 🤷
 		if param == "*" {
-			only = false
+			quoted = true
 		}
 		param = spec
 	}
@@ -368,22 +395,23 @@ func (t *Translator) paramExp(p *syntax.ParamExp, only bool) {
 	case p.Names != 0: // ${!prefix*} or ${!prefix@}
 		unsupported(p)
 	case p.Exp != nil:
+		// TODO: should probably allow lists to be expanded here
 		switch op := p.Exp.Op; op {
 		case syntax.SubstColPlus:
 			t.printf(`(test -n "$%s" && echo `, param)
-			t.word(p.Exp.Word)
+			t.word(p.Exp.Word, false)
 			t.str(" || echo)")
 		case syntax.SubstPlus:
 			t.printf(`(set -q %s && echo `, param)
-			t.word(p.Exp.Word)
+			t.word(p.Exp.Word, false)
 			t.str(" || echo)")
 		case syntax.SubstColMinus:
 			t.printf(`(test -n "$%s" && echo "$%s" || echo `, param, param)
-			t.word(p.Exp.Word)
+			t.word(p.Exp.Word, false)
 			t.str(")")
 		case syntax.SubstMinus:
 			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
-			t.word(p.Exp.Word)
+			t.word(p.Exp.Word, false)
 			t.str(")")
 		default:
 			unsupported(p)
@@ -391,10 +419,10 @@ func (t *Translator) paramExp(p *syntax.ParamExp, only bool) {
 	case p.Short:
 		fallthrough
 	default:
-		if only {
-			t.printf(`$%s`, param)
-		} else {
+		if quoted {
 			t.printf(`"$%s"`, param)
+		} else {
+			t.printf(`$%s`, param)
 		}
 	}
 }
