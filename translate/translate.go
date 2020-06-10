@@ -59,10 +59,82 @@ func (t *Translator) stmt(s *syntax.Stmt) {
 	t.command(s.Cmd)
 }
 
+type arithmReturn int
+
+const (
+	arithmReturnValue arithmReturn = iota
+	arithmReturnStatus
+)
+
+func (t *Translator) arithmExpr(e syntax.ArithmExpr, returnValue arithmReturn) {
+	switch e := e.(type) {
+	case *syntax.BinaryArithm:
+		switch e.Op {
+		case syntax.Eql:
+			switch returnValue {
+			case arithmReturnValue:
+				t.str("(")
+			}
+			t.str("test ")
+			t.arithmExpr(e.X, arithmReturnValue)
+			t.str(" -eq ")
+			t.arithmExpr(e.Y, arithmReturnValue)
+			switch returnValue {
+			case arithmReturnValue:
+				t.str("; and echo 1; or echo 0)")
+			}
+		case syntax.Neq:
+			switch returnValue {
+			case arithmReturnValue:
+				t.str("(")
+			}
+			t.str("test ")
+			t.arithmExpr(e.X, arithmReturnValue)
+			t.str(" -ne ")
+			t.arithmExpr(e.Y, arithmReturnValue)
+			switch returnValue {
+			case arithmReturnValue:
+				t.str("; and echo 1; or echo 0)")
+			}
+		default:
+			unsupported(e)
+		}
+	case *syntax.UnaryArithm:
+		unsupported(e)
+	case *syntax.ParenArithm:
+		unsupported(e)
+	case *syntax.Word:
+		l := e.Lit()
+		if l == "" {
+			unsupported(e)
+		}
+
+		switch returnValue {
+		case arithmReturnStatus:
+			t.str("test ")
+		}
+		if syntax.ValidName(l) {
+			if expr, ok := literalVariables[l]; ok {
+				t.str(expr)
+			} else {
+				t.printf(`"$%s"`, l)
+			}
+		} else {
+			t.str(l)
+		}
+		switch returnValue {
+		case arithmReturnStatus:
+			t.str(" != 0")
+		}
+	default:
+		unsupported(e)
+	}
+}
+
 func (t *Translator) command(c syntax.Command) {
 	switch c := c.(type) {
 	case *syntax.ArithmCmd:
-		unsupported(c)
+		t.arithmExpr(c.X, arithmReturnStatus)
 	case *syntax.BinaryCmd:
 		t.binaryCmd(c)
 	case *syntax.Block:
@@ -399,7 +471,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 			t.str(")")
 		}
 	case *syntax.ArithmExp:
-		unsupported(wp)
+		t.arithmExpr(wp.X, arithmReturnValue)
 	case *syntax.ProcSubst:
 		t.str("(")
 		t.stmts(wp.StmtList)
@@ -419,14 +491,27 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 
 var specialVariables = map[string]string{
 	//"!": "%last", % variables are weird
-	"?": "status",
-	"$": "fish_pid",
-	"*": `argv`, // always quote
-	"@": "argv",
+	"?":        "status",
+	"$":        "fish_pid",
+	"BASH_PID": "fish_pid",
+	"*":        `argv`, // always quote
+	"@":        "argv",
+	"HOSTNAME": "hostname",
+}
+
+// http://tldp.org/LDP/abs/html/internalvariables.html
+var literalVariables = map[string]string{
+	"UID":    "(id -ru)",
+	"EUID":   "(id -u)",
+	"GROUPS": "(id -G | string split ' ')",
 }
 
 func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	param := p.Param.Value
+	if expr, ok := literalVariables[param]; ok {
+		t.str(expr)
+		return
+	}
 
 	if spec, ok := specialVariables[param]; ok {
 		// 🤷

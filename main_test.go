@@ -19,6 +19,13 @@ func TestParseChr(t *testing.T) {
 	}
 }
 
+func TestParseArithm(t *testing.T) {
+	err := perform("test.bash", strings.NewReader(arithm))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 const testFile = `
 #!/usr/bin/env bash
 
@@ -185,4 +192,8 @@ function chruby()
 			;;
 	esac
 }
+`
+
+const arithm = `
+(( 123 ))
 `
