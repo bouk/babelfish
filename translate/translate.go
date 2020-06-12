@@ -109,8 +109,8 @@ func (t *Translator) arithmExpr(e syntax.ArithmExpr, returnValue arithmReturn) {
 	case *syntax.ParenArithm:
 		unsupported(e)
 	case *syntax.Word:
-		l := e.Lit()
-		if l == "" {
+		l, ok := lit(e)
+		if !ok {
 			unsupported(e)
 		}
 
@@ -420,7 +420,7 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 		}
 
 		first := c.Args[0]
-		l := first.Lit()
+		l, _ := lit(first)
 		if replacement, ok := builtins[l]; ok {
 			t.str(replacement)
 		} else {
@@ -477,10 +477,12 @@ func (t *Translator) word(w *syntax.Word, mustQuote bool) {
 func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
+		s := wp.Value
 		if quoted {
+			s = unescape(s)
 			t.str("'")
 		}
-		t.str(wp.Value)
+		t.str(s)
 		if quoted {
 			t.str("'")
 		}
@@ -491,12 +493,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 			t.str(`''`)
 		}
 		for _, part := range wp.Parts {
-			switch part := part.(type) {
-			case *syntax.Lit:
-				t.escapedString(part.Value)
-			default:
-				t.wordPart(part, true)
-			}
+			t.wordPart(part, true)
 		}
 	case *syntax.ParamExp:
 		t.paramExp(wp, quoted)
@@ -627,24 +624,31 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
 			t.word(p.Exp.Word, false)
 			t.str(")")
-		case syntax.RemSmallPrefix, syntax.RemLargePrefix, syntax.RemSmallSuffix, syntax.RemLargeSuffix:
+		case syntax.RemSmallPrefix, syntax.RemLargePrefix, syntax.RemSmallSuffix, syntax.RemLargeSuffix: // a#a a##a a%a a%%a
+			isPath := strings.HasSuffix(param, "PATH")
 			suffix := op == syntax.RemSmallSuffix || op == syntax.RemLargeSuffix
 			small := op == syntax.RemSmallPrefix || op == syntax.RemSmallSuffix
 			var mode pattern.Mode
 			if small {
 				mode |= pattern.Shortest
 			}
-			expr, err := pattern.Regexp(p.Exp.Word.Lit(), mode)
+			pat, ok := lit(p.Exp.Word)
+			if !ok {
+				unsupported(p)
+			}
+			pat = unescape(pat)
+			expr, err := pattern.Regexp(pat, mode)
 			if err != nil {
 				unsupported(p)
 			}
-			switch {
-			case suffix && small:
-				expr = ".*(" + expr + ")$"
-			case suffix:
-				expr = "(" + expr + ")$"
-			default:
-				expr = "^(" + expr + ")"
+			dot := ""
+			if isPath {
+				dot = `\.?`
+			}
+			if suffix {
+				expr = "(" + expr + dot + ")$"
+			} else {
+				expr = "^(" + dot + expr + ")"
 			}
 			t.str(`(string replace -r `)
 			t.escapedString(expr)
@@ -710,4 +714,42 @@ func (t *Translator) nl() {
 	for i := 0; i < t.indentLevel; i++ {
 		t.str("  ")
 	}
+}
+
+func lit(w *syntax.Word) (string, bool) {
+	// In the usual case, we'll have either a single part that's a literal,
+	// or one of the parts being a non-literal. Using strings.Join instead
+	// of a strings.Builder avoids extra work in these cases, since a single
+	// part is a shortcut, and many parts don't incur string copies.
+	lits := make([]string, 0, 1)
+	for _, part := range w.Parts {
+		lit, ok := part.(*syntax.Lit)
+		if !ok {
+			return "", false
+		}
+		lits = append(lits, lit.Value)
+	}
+	return strings.Join(lits, ""), true
+}
+
+func unescape(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+
+	var buf bytes.Buffer
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		// TODO: this is taken from sh, but it's wrong. The special characters depend on the context.
+		// So I need a quote state variable in Translator
+		if b == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '/', '"', '\\', '$', '`': // special chars
+				continue
+			}
+		}
+		buf.WriteByte(b)
+	}
+
+	return buf.String()
 }
