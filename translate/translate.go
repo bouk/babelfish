@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"mvdan.cc/sh/syntax"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // Translator
@@ -139,7 +139,7 @@ func (t *Translator) command(c syntax.Command) {
 		t.binaryCmd(c)
 	case *syntax.Block:
 		// TODO: Maybe need begin/end here, sometimes? Not for function
-		t.body(c.StmtList)
+		t.body(c.Stmts...)
 	case *syntax.CallExpr:
 		t.callExpr(c)
 	case *syntax.CaseClause:
@@ -168,7 +168,7 @@ func (t *Translator) command(c syntax.Command) {
 			unsupported(c)
 		}
 		t.indent()
-		t.body(c.Do)
+		t.body(c.Do...)
 		t.outdent()
 		t.str("end")
 	case *syntax.FuncDecl:
@@ -184,7 +184,7 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.Subshell:
 		t.str("fish -c ")
 		t.capture(func() {
-			t.stmts(c.StmtList)
+			t.stmts(c.Stmts...)
 		})
 	case *syntax.TestClause:
 		t.testClause(c)
@@ -196,9 +196,9 @@ func (t *Translator) command(c syntax.Command) {
 		if c.Until {
 			t.str("not ")
 		}
-		t.stmts(c.Cond)
+		t.stmts(c.Cond...)
 		t.indent()
-		t.body(c.Do)
+		t.body(c.Do...)
 		t.outdent()
 		t.str("end")
 	default:
@@ -280,27 +280,31 @@ func (t *Translator) ifClause(i *syntax.IfClause, elif bool) {
 	} else {
 		t.str("if ")
 	}
-	t.stmts(i.Cond)
+	t.stmts(i.Cond...)
 	t.indent()
-	t.body(i.Then)
+	t.body(i.Then...)
 	t.outdent()
-	if i.FollowedByElif() {
-		s := i.Else.Stmts[0]
-		t.ifClause(s.Cmd.(*syntax.IfClause), true)
+
+	el := i.Else
+	if el != nil && el.ThenPos.IsValid() {
+		t.ifClause(el, true)
 		return
 	}
 
-	if len(i.Else.Stmts) > 0 {
+	if el == nil {
+		// comments
+	} else {
 		t.str("else")
 		t.indent()
-		t.body(i.Else)
+		t.body(el.Then...)
 		t.outdent()
 	}
+
 	t.str("end")
 }
 
-func (t *Translator) stmts(s syntax.StmtList) {
-	for i, s := range s.Stmts {
+func (t *Translator) stmts(s ...*syntax.Stmt) {
+	for i, s := range s {
 		if i > 0 {
 			t.str("; ")
 		}
@@ -308,8 +312,8 @@ func (t *Translator) stmts(s syntax.StmtList) {
 	}
 }
 
-func (t *Translator) body(s syntax.StmtList) {
-	for i, s := range s.Stmts {
+func (t *Translator) body(s ...*syntax.Stmt) {
+	for i, s := range s {
 		if i > 0 {
 			t.nl()
 		}
@@ -419,7 +423,7 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 		}
 	}
 
-	for _, a := range c.Assigns {
+	for _, a := range c.Args {
 		if a.Name == nil {
 			unsupported(c)
 		}
@@ -465,7 +469,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 			t.str("(echo ")
 		}
 		t.str("(")
-		t.stmts(wp.StmtList)
+		t.stmts(wp.Stmts...)
 		t.str(")")
 		if quoted {
 			t.str(")")
@@ -474,7 +478,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 		t.arithmExpr(wp.X, arithmReturnValue)
 	case *syntax.ProcSubst:
 		t.str("(")
-		t.stmts(wp.StmtList)
+		t.stmts(wp.Stmts...)
 		switch wp.Op {
 		case syntax.CmdIn:
 			t.str(" | psub")
@@ -560,19 +564,19 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	case p.Exp != nil:
 		// TODO: should probably allow lists to be expanded here
 		switch op := p.Exp.Op; op {
-		case syntax.SubstColPlus:
+		case syntax.AlternateUnsetOrNull:
 			t.printf(`(test -n "$%s" && echo `, param)
 			t.word(p.Exp.Word, false)
 			t.str(" || echo)")
-		case syntax.SubstPlus:
+		case syntax.AlternateUnset:
 			t.printf(`(set -q %s && echo `, param)
 			t.word(p.Exp.Word, false)
 			t.str(" || echo)")
-		case syntax.SubstColMinus:
+		case syntax.DefaultUnsetOrNull:
 			t.printf(`(test -n "$%s" && echo "$%s" || echo `, param, param)
 			t.word(p.Exp.Word, false)
 			t.str(")")
-		case syntax.SubstMinus:
+		case syntax.DefaultUnset:
 			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
 			t.word(p.Exp.Word, false)
 			t.str(")")

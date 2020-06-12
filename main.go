@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"mvdan.cc/sh/syntax"
+	"mvdan.cc/sh/v3/syntax"
 	"os"
 )
 
@@ -16,7 +16,7 @@ type Options struct {
 func perform(name string, in io.Reader) error {
 	out := os.Stdout
 	errOut := os.Stderr
-	p := syntax.NewParser(syntax.KeepComments, syntax.Variant(syntax.LangBash))
+	p := syntax.NewParser(syntax.KeepComments(true), syntax.Variant(syntax.LangBash))
 	output, err := p.Parse(in, name)
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func do() error {
 
 	f := os.Stdin
 	if o.Dump {
-		p := syntax.NewParser(syntax.KeepComments, syntax.Variant(syntax.LangBash))
+		p := syntax.NewParser(syntax.KeepComments(true), syntax.Variant(syntax.LangBash))
 		output, err := p.Parse(f, f.Name())
 		if err != nil {
 			return err

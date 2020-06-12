@@ -2,7 +2,4 @@ module bou.ke/babelfish
 
 go 1.14
 
-require (
-	github.com/kr/pretty v0.2.0 // indirect
-	mvdan.cc/sh v2.6.4+incompatible
-)
+require mvdan.cc/sh/v3 v3.1.1-0.20200611202847-1a815c3846d1

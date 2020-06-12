@@ -2,7 +2,7 @@ package translate
 
 import (
 	"fmt"
-	"mvdan.cc/sh/syntax"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 type UnsupportedError struct {
