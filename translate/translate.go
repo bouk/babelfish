@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"mvdan.cc/sh/v3/pattern"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -580,6 +581,28 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
 			t.word(p.Exp.Word, false)
 			t.str(")")
+		case syntax.RemSmallPrefix, syntax.RemLargePrefix, syntax.RemSmallSuffix, syntax.RemLargeSuffix:
+			suffix := op == syntax.RemSmallSuffix || op == syntax.RemLargeSuffix
+			small := op == syntax.RemSmallPrefix || op == syntax.RemSmallSuffix
+			var mode pattern.Mode
+			if small {
+				mode |= pattern.Shortest
+			}
+			expr, err := pattern.Regexp(p.Exp.Word.Lit(), mode)
+			if err != nil {
+				unsupported(p)
+			}
+			switch {
+			case suffix && small:
+				expr = ".*(" + expr + ")$"
+			case suffix:
+				expr = "(" + expr + ")$"
+			default:
+				expr = "^(" + expr + ")"
+			}
+			t.str(`(string replace -r `)
+			t.escapedString(expr)
+			t.printf(` '' "$%s")`, param)
 		default:
 			unsupported(p)
 		}
