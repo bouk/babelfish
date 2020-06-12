@@ -53,6 +53,10 @@ func (t *Translator) File(f *syntax.File) (err error) {
 }
 
 func (t *Translator) stmt(s *syntax.Stmt) {
+	if s.Background || s.Coprocess || s.Negated || len(s.Redirs) != 0 {
+		unsupported(s)
+	}
+
 	for _, comment := range s.Comments {
 		t.comment(&comment)
 	}
@@ -444,9 +448,12 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 		}
 	}
 
-	for _, a := range c.Args {
+	for i, a := range c.Args {
 		if a.Name == nil {
 			unsupported(c)
+		}
+		if i > 0 {
+			t.str("; ")
 		}
 		t.assign(prefix, a)
 	}
