@@ -225,7 +225,6 @@ func (t *Translator) caseClause(c *syntax.CaseClause) {
 		t.outdent()
 	}
 	t.str("end")
-	t.nl()
 }
 
 func (t *Translator) testClause(c *syntax.TestClause) {
@@ -471,10 +470,19 @@ func (t *Translator) word(w *syntax.Word, mustQuote bool) {
 func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 	switch wp := wp.(type) {
 	case *syntax.Lit:
+		if quoted {
+			t.str("'")
+		}
 		t.str(wp.Value)
+		if quoted {
+			t.str("'")
+		}
 	case *syntax.SglQuoted:
 		t.escapedString(wp.Value)
 	case *syntax.DblQuoted:
+		if len(wp.Parts) == 0 {
+			t.str(`''`)
+		}
 		for _, part := range wp.Parts {
 			switch part := part.(type) {
 			case *syntax.Lit:
@@ -567,6 +575,16 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 		}
 		t.printf(`(string length "$%s")`, param)
 	case p.Index != nil: // ${a[i]}, ${a["k"]}
+		if word, ok := p.Index.(*syntax.Word); ok {
+			switch word.Lit() {
+			case "@":
+				t.printf(`$%s`, param)
+				return
+			case "*":
+				t.printf(`"$%s"`, param)
+				return
+			}
+		}
 		unsupported(p)
 	case p.Width: // ${%a}
 		unsupported(p)
