@@ -144,7 +144,7 @@ func (t *Translator) command(c syntax.Command) {
 	case *syntax.CallExpr:
 		t.callExpr(c)
 	case *syntax.CaseClause:
-		unsupported(c)
+		t.caseClause(c)
 	case *syntax.CoprocClause:
 		unsupported(c)
 	case *syntax.DeclClause:
@@ -205,6 +205,27 @@ func (t *Translator) command(c syntax.Command) {
 	default:
 		unsupported(c)
 	}
+}
+
+func (t *Translator) caseClause(c *syntax.CaseClause) {
+	t.str("switch ")
+	t.word(c.Word, true)
+	t.nl()
+	for _, item := range c.Items {
+		if item.Op != syntax.Break {
+			unsupported(item)
+		}
+		t.str("case")
+		for _, pat := range item.Patterns {
+			t.str(" ")
+			t.word(pat, true)
+		}
+		t.indent()
+		t.body(item.Stmts...)
+		t.outdent()
+	}
+	t.str("end")
+	t.nl()
 }
 
 func (t *Translator) testClause(c *syntax.TestClause) {
