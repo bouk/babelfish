@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"mvdan.cc/sh/v3/pattern"
@@ -74,10 +75,14 @@ func (t *Translator) stmt(s *syntax.Stmt) {
 		switch r.Op {
 		case syntax.RdrInOut, syntax.RdrIn, syntax.AppOut, syntax.DplIn, syntax.DplOut:
 			t.str(r.Op.String())
+			t.word(r.Word, false)
+		case syntax.Hdoc:
+			t.str("<(echo ")
+			t.word(r.Hdoc, true)
+			t.str("| psub)")
 		default:
 			unsupported(s)
 		}
-		t.word(r.Word, false)
 	}
 }
 
@@ -259,9 +264,9 @@ func (t *Translator) testExpr(e syntax.TestExpr) {
 		t.testExpr(e.X)
 		switch e.Op {
 		case syntax.AndTest:
-			t.str(" -a ")
+			t.str(" && test ")
 		case syntax.OrTest:
-			t.str(" -o ")
+			t.str(" || test ")
 		case syntax.TsMatch:
 			t.str(" = ")
 		case syntax.TsNoMatch:
@@ -387,7 +392,7 @@ func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 
 var builtins = map[string]string{
 	".":     "source",
-	"unset": "set -e",
+	"shift": "set -e argv[1]",
 }
 
 func (t *Translator) assign(prefix string, a *syntax.Assign) {
@@ -405,7 +410,7 @@ func (t *Translator) assign(prefix string, a *syntax.Assign) {
 				unsupported(a)
 			}
 			t.str(" ")
-			t.word(el.Value, true)
+			t.word(el.Value, false)
 		}
 	case a.Value != nil:
 		t.printf("set%s %s ", prefix, a.Name.Value)
@@ -440,6 +445,18 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 		l, _ := lit(first)
 		if replacement, ok := builtins[l]; ok {
 			t.str(replacement)
+		} else if l == "unset" {
+			t.str("set -e ")
+			for i, a := range c.Args[1:] {
+				if i > 0 {
+					t.str("; set -e ")
+				}
+				t.word(a, false)
+			}
+			return
+		} else if l == "hash" {
+			t.str("true")
+			return
 		} else {
 			t.word(first, false)
 		}
@@ -477,7 +494,7 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 }
 
 func (t *Translator) word(w *syntax.Word, mustQuote bool) {
-	quote := mustQuote || len(w.Parts) > 1
+	quote := mustQuote
 	for _, part := range w.Parts {
 		t.wordPart(part, quote)
 	}
@@ -561,10 +578,16 @@ var literalVariables = map[string]string{
 	"GROUPS": "(id -G | string split ' ')",
 }
 
+var argvRe = regexp.MustCompile(`^[0-9]+$`)
+
 func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	param := p.Param.Value
 	if expr, ok := literalVariables[param]; ok {
 		t.str(expr)
+		return
+	}
+	if argvRe.MatchString(param) {
+		t.printf(`$argv[%s]`, param)
 		return
 	}
 
