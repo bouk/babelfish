@@ -1,4 +1,4 @@
-package main
+package main // import "bou.ke/babelfish"
 
 import (
 	"bou.ke/babelfish/translate"
