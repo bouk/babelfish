@@ -20,7 +20,7 @@ Because I got annoyed by having to use [fish-foreign-env](https://github.com/oh-
 # Pass some code on stdin to translate it
 $ echo 'f() { export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket); local cool=yep; }' | babelfish
 function f
-  set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket | string collect; or echo)
+  set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket | string collect -N; or echo)
   set -l cool 'yep'
 end
 # Pass the result to source to load it into fish

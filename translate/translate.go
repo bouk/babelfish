@@ -534,7 +534,7 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 		t.str("(")
 		t.stmts(wp.Stmts...)
 		if quoted {
-			t.str(" | string collect; or echo")
+			t.str(" | string collect -N; or echo")
 		}
 		t.str(")")
 	case *syntax.ArithmExp:
