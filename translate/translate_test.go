@@ -168,7 +168,7 @@ function chruby()
 const chrubyExpected = `set CHRUBY_VERSION '0.3.9'
 set RUBIES
 for dir in "$PREFIX"'/opt/rubies' "$HOME"'/.rubies'
-  test -d "$dir" && test -n (echo (ls -A "$dir")) && set -a RUBIES "$dir"/*
+  test -d "$dir" && test -n (ls -A "$dir" | string collect; or echo) && set -a RUBIES "$dir"/*
 end
 set -e dir
 function chruby_reset
@@ -200,10 +200,10 @@ function chruby_use
   set -gx RUBY_ROOT $argv[1]
   set -gx RUBYOPT $argv[2]
   set -gx PATH "$RUBY_ROOT"'/bin:'"$PATH"
-  eval (echo (RUBYGEMS_GEMDEPS='' "$RUBY_ROOT"'/bin/ruby' - <(echo 'puts "export RUBY_ENGINE=#{Object.const_defined?(:RUBY_ENGINE) ? RUBY_ENGINE : \'ruby\'};"
+  eval (RUBYGEMS_GEMDEPS='' "$RUBY_ROOT"'/bin/ruby' - <(echo 'puts "export RUBY_ENGINE=#{Object.const_defined?(:RUBY_ENGINE) ? RUBY_ENGINE : \'ruby\'};"
 puts "export RUBY_VERSION=#{RUBY_VERSION};"
 begin; require \'rubygems\'; puts "export GEM_ROOT=#{Gem.default_dir.inspect};"; rescue LoadError; end
-'| psub)))
+'| psub) | string collect; or echo)
   set -gx PATH (test -n "$GEM_ROOT" && echo $GEM_ROOT/bin: || echo)"$PATH"
   if test (id -ru) -ne 0
     set -gx GEM_HOME "$HOME"'/.gem/'"$RUBY_ENGINE"'/'"$RUBY_VERSION"
@@ -335,7 +335,7 @@ end
 echo (cat test.bash | cool | fish -c 'cool | cool | fish -c \'echo \\\'cool\\\' | cool\'')
 test -e /var/file.sh && source /var/file.sh
 if [ -z "$SSH_AUTH_SOCK" ]
-  set -gx SSH_AUTH_SOCK (echo (/bin/gpgconf --list-dirs agent-ssh-socket))
+  set -gx SSH_AUTH_SOCK (/bin/gpgconf --list-dirs agent-ssh-socket | string collect; or echo)
 end
 if [ -d '/share/gsettings-schemas/name' ]
   set -gx whatevs "$whatevs"(test -n "$whatevs" && echo : || echo)'/share/gsettings-schemas/name'
@@ -368,8 +368,8 @@ call $me
 echo (count $argv)
 echo (count $cool)
 echo (string length "$cool")
-set a (echo (ok))
-set a (echo (ok))
+set a (ok | string collect; or echo)
+set a (ok | string collect; or echo)
 source /etc/bashrc
 test 123 != 0
 `

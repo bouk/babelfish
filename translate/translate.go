@@ -531,15 +531,12 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 		t.paramExp(wp, quoted)
 	case *syntax.CmdSubst:
 		// Need to ensure there's one element returned from the subst
-		if quoted {
-			t.str("(echo ")
-		}
 		t.str("(")
 		t.stmts(wp.Stmts...)
-		t.str(")")
 		if quoted {
-			t.str(")")
+			t.str(" | string collect; or echo")
 		}
+		t.str(")")
 	case *syntax.ArithmExp:
 		t.arithmExpr(wp.X, arithmReturnValue)
 	case *syntax.ProcSubst:
