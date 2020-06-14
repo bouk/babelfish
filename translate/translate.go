@@ -53,7 +53,7 @@ func (t *Translator) File(f *syntax.File) (err error) {
 }
 
 func (t *Translator) stmt(s *syntax.Stmt) {
-	if s.Background || s.Coprocess || s.Negated || len(s.Redirs) != 0 {
+	if s.Background || s.Coprocess {
 		unsupported(s)
 	}
 
@@ -61,7 +61,24 @@ func (t *Translator) stmt(s *syntax.Stmt) {
 		t.comment(&comment)
 	}
 
+	if s.Negated {
+		t.str("! ")
+	}
 	t.command(s.Cmd)
+	for _, r := range s.Redirs {
+		t.str(" ")
+
+		if r.N != nil {
+			t.str(r.N.Value)
+		}
+		switch r.Op {
+		case syntax.RdrInOut, syntax.RdrIn, syntax.AppOut, syntax.DplIn, syntax.DplOut:
+			t.str(r.Op.String())
+		default:
+			unsupported(s)
+		}
+		t.word(r.Word, false)
+	}
 }
 
 type arithmReturn int
