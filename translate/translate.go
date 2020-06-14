@@ -514,11 +514,9 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 		s := wp.Value
 		if quoted {
 			s = unescape(s)
-			t.str("'")
-		}
-		t.str(s)
-		if quoted {
-			t.str("'")
+			t.escapedString(s)
+		} else {
+			t.str(s)
 		}
 	case *syntax.SglQuoted:
 		t.escapedString(wp.Value)
@@ -682,7 +680,7 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 				unsupported(p)
 			}
 			dot := ""
-			if isPath {
+			if isPath && (suffix && strings.HasSuffix(expr, ":") || !suffix && strings.HasPrefix(expr, ":")) {
 				dot = `\.?`
 			}
 			if suffix {
