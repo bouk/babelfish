@@ -530,11 +530,11 @@ func (t *Translator) wordPart(wp syntax.WordPart, quoted bool) {
 	case *syntax.ParamExp:
 		t.paramExp(wp, quoted)
 	case *syntax.CmdSubst:
-		// Need to ensure there's one element returned from the subst
+		// Need to ensure there's one element returned from the subst and remove empty lines
 		t.str("(")
 		t.stmts(wp.Stmts...)
 		if quoted {
-			t.str(" | string collect -N; or echo")
+			t.str(" | string collect -N | awk NF; or echo")
 		}
 		t.str(")")
 	case *syntax.ArithmExp:
