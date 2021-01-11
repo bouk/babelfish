@@ -494,6 +494,11 @@ func (t *Translator) declClause(c *syntax.DeclClause) {
 }
 
 func (t *Translator) word(w *syntax.Word, mustQuote bool) {
+	if w == nil {
+		t.str(`''`)
+		return
+	}
+
 	quote := mustQuote
 	for _, part := range w.Parts {
 		t.wordPart(part, quote)

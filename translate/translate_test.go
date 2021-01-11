@@ -36,6 +36,14 @@ func TestParse(t *testing.T) {
 			in:       testFile,
 			expected: testExpected,
 		},
+		{
+			name: "java home",
+			in:   `if [ -z "${JAVA_HOME-}" ]; then export JAVA_HOME=/bla/lib/openjdk; fi`,
+			expected: `if [ -z (set -q JAVA_HOME && echo "$JAVA_HOME" || echo '') ]
+  set -gx JAVA_HOME '/bla/lib/openjdk'
+end
+`,
+		},
 	}
 
 	for _, test := range tests {
