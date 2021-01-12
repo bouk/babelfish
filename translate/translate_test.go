@@ -44,11 +44,18 @@ func TestParse(t *testing.T) {
 end
 `,
 		},
+		{
+			name: "recursive translation",
+			in:   `source /opt/source.sh`,
+			expected: `/bin/babelfish < /opt/source.sh | source
+`,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			tr := NewTranslator()
+			tr.babelFishLocation = "/bin/babelfish"
 			p := syntax.NewParser(syntax.KeepComments(true), syntax.Variant(syntax.LangBash))
 			f, err := p.Parse(strings.NewReader(test.in), test.name)
 			if err != nil {

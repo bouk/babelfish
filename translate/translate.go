@@ -15,14 +15,19 @@ import (
 //
 // The translation functions internally panic, which gets caught by File
 type Translator struct {
-	buf         *bytes.Buffer
-	indentLevel int
+	buf               *bytes.Buffer
+	indentLevel       int
+	babelFishLocation string
 }
 
 func NewTranslator() *Translator {
 	return &Translator{
 		buf: &bytes.Buffer{},
 	}
+}
+
+func (t *Translator) BabelfishLocation(loc string) {
+	t.babelFishLocation = loc
 }
 
 func (t *Translator) WriteTo(w io.Writer) (int64, error) {
@@ -390,11 +395,6 @@ func (t *Translator) binaryCmd(c *syntax.BinaryCmd) {
 	}
 }
 
-var builtins = map[string]string{
-	".":     "source",
-	"shift": "set -e argv[1]",
-}
-
 func (t *Translator) assign(prefix string, a *syntax.Assign) {
 	if a.Append {
 		prefix += " -a"
@@ -443,9 +443,10 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 
 		first := c.Args[0]
 		l, _ := lit(first)
-		if replacement, ok := builtins[l]; ok {
-			t.str(replacement)
-		} else if l == "unset" {
+		switch l {
+		case "shift":
+			t.str("set -e argv[1]")
+		case "unset":
 			t.str("set -e ")
 			for i, a := range c.Args[1:] {
 				if i > 0 {
@@ -454,14 +455,22 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 				t.word(a, false)
 			}
 			return
-		} else if l == "hash" {
+		case "hash":
 			t.str("true")
 			return
-		} else {
+		case "source", ".":
+			if len(c.Args) == 2 && t.babelFishLocation != "" {
+				t.str(t.babelFishLocation)
+				t.str(" < ")
+				t.word(c.Args[1], false)
+				t.str(" | source")
+				return
+			}
+			fallthrough
+		default:
 			t.word(first, false)
 		}
 
-		// TODO: check if we're sourcing/evaling, and insert babelfish
 		for _, a := range c.Args[1:] {
 			t.str(" ")
 			t.word(a, false)

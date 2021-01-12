@@ -7,6 +7,7 @@ import (
 	"io"
 	"mvdan.cc/sh/v3/syntax"
 	"os"
+	"path/filepath"
 )
 
 type Options struct {
@@ -23,6 +24,16 @@ func perform(name string, in io.Reader) error {
 	}
 
 	t := translate.NewTranslator()
+
+	loc := os.Args[0]
+	// If the file path is relative, make it absolute
+	if len(loc) > 0 && loc[0] == '.' {
+		if wd, err := os.Getwd(); err == nil {
+			loc = filepath.Join(wd, loc)
+		}
+	}
+	t.BabelfishLocation(loc)
+
 	err = t.File(output)
 	if err, _ := err.(*translate.UnsupportedError); err != nil {
 		syntax.NewPrinter().Print(errOut, err.Node)

@@ -37,4 +37,4 @@ $ chruby
 
 ## To do
 
-Probably still a lot. There's many variables like `$BASH_SOURCE` that aren't translated, and a bunch of arithmetic expressions aren't implemented either. Pull requests and issues welcome!
+Probably still a lot. There's a couple variables like `$BASH_SOURCE` that aren't translated, and not all arithmetic expressions are implemented either. Pull requests and issues welcome!
