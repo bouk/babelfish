@@ -78,7 +78,7 @@ func (t *Translator) stmt(s *syntax.Stmt) {
 			t.str(r.N.Value)
 		}
 		switch r.Op {
-		case syntax.RdrInOut, syntax.RdrIn, syntax.AppOut, syntax.DplIn, syntax.DplOut:
+		case syntax.RdrInOut, syntax.RdrIn, syntax.RdrOut, syntax.AppOut, syntax.DplIn, syntax.DplOut:
 			t.str(r.Op.String())
 			t.word(r.Word, false)
 		case syntax.Hdoc:
