@@ -348,7 +348,7 @@ function cool
   cat | cat
 end
 echo (cat test.bash | cool | fish -c 'cool | cool | fish -c \'echo \\\'cool\\\' | cool\'')
-test -e /var/file.sh && source /var/file.sh
+test -e /var/file.sh && /bin/babelfish < /var/file.sh | source
 if [ -z "$SSH_AUTH_SOCK" ]
   set -gx SSH_AUTH_SOCK (/bin/gpgconf --list-dirs agent-ssh-socket | string collect; or echo)
 end
@@ -385,6 +385,6 @@ echo (count $cool)
 echo (string length "$cool")
 set a (ok | string collect; or echo)
 set a (ok | string collect; or echo)
-source /etc/bashrc
+/bin/babelfish < /etc/bashrc | source
 test 123 != 0
 `
