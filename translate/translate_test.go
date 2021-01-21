@@ -50,6 +50,15 @@ end
 			expected: `/bin/babelfish < /opt/source.sh | source
 `,
 		},
+		{
+			name: "append to PATH",
+			in: `
+export NIX_PATH="nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos:nixos-config=/etc/nixos/configuration.nix"
+export NIX_PATH="$HOME/.nix-defexpr/channels${NIX_PATH:+:$NIX_PATH}"`,
+			expected: `set -gx NIX_PATH 'nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos:nixos-config=/etc/nixos/configuration.nix'
+set -gx NIX_PATH "$HOME"'/.nix-defexpr/channels'(test -n "$NIX_PATH" && echo ':'"$NIX_PATH" || echo)
+`,
+		},
 	}
 
 	for _, test := range tests {
@@ -219,10 +228,10 @@ function chruby_use
 puts "export RUBY_VERSION=#{RUBY_VERSION};"
 begin; require \'rubygems\'; puts "export GEM_ROOT=#{Gem.default_dir.inspect};"; rescue LoadError; end
 '| psub) | string collect; or echo)
-  set -gx PATH (test -n "$GEM_ROOT" && echo $GEM_ROOT/bin: || echo)"$PATH"
+  set -gx PATH (test -n "$GEM_ROOT" && echo "$GEM_ROOT"'/bin:' || echo)"$PATH"
   if test (id -ru) -ne 0
     set -gx GEM_HOME "$HOME"'/.gem/'"$RUBY_ENGINE"'/'"$RUBY_VERSION"
-    set -gx GEM_PATH "$GEM_HOME"(test -n "$GEM_ROOT" && echo :$GEM_ROOT || echo)(test -n "$GEM_PATH" && echo :$GEM_PATH || echo)
+    set -gx GEM_PATH "$GEM_HOME"(test -n "$GEM_ROOT" && echo ':'"$GEM_ROOT" || echo)(test -n "$GEM_PATH" && echo ':'"$GEM_PATH" || echo)
     set -gx PATH "$GEM_HOME"'/bin:'"$PATH"
   end
   true
@@ -353,16 +362,16 @@ if [ -z "$SSH_AUTH_SOCK" ]
   set -gx SSH_AUTH_SOCK (/bin/gpgconf --list-dirs agent-ssh-socket | string collect; or echo)
 end
 if [ -d '/share/gsettings-schemas/name' ]
-  set -gx whatevs "$whatevs"(test -n "$whatevs" && echo : || echo)'/share/gsettings-schemas/name'
+  set -gx whatevs "$whatevs"(test -n "$whatevs" && echo ':' || echo)'/share/gsettings-schemas/name'
 else if false
   true
 else
   true
 end
-echo (set -q cool && echo a || echo)
-echo (test -n "$cool" && echo a || echo)
-echo (set -q cool && echo "$cool" || echo a)
-echo (test -n "$cool" && echo "$cool" || echo a)
+echo (set -q cool && echo 'a' || echo)
+echo (test -n "$cool" && echo 'a' || echo)
+echo (set -q cool && echo "$cool" || echo 'a')
+echo (test -n "$cool" && echo "$cool" || echo 'a')
 set -e ASPELL_CONF
 for i in a b c
   if [ -d "$i"'/lib/aspell' ]
