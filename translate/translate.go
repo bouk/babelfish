@@ -659,19 +659,19 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 		switch op := p.Exp.Op; op {
 		case syntax.AlternateUnsetOrNull:
 			t.printf(`(test -n "$%s" && echo `, param)
-			t.word(p.Exp.Word, false)
+			t.word(p.Exp.Word, true)
 			t.str(" || echo)")
 		case syntax.AlternateUnset:
 			t.printf(`(set -q %s && echo `, param)
-			t.word(p.Exp.Word, false)
+			t.word(p.Exp.Word, true)
 			t.str(" || echo)")
 		case syntax.DefaultUnsetOrNull:
 			t.printf(`(test -n "$%s" && echo "$%s" || echo `, param, param)
-			t.word(p.Exp.Word, false)
+			t.word(p.Exp.Word, true)
 			t.str(")")
 		case syntax.DefaultUnset:
 			t.printf(`(set -q %s && echo "$%s" || echo `, param, param)
-			t.word(p.Exp.Word, false)
+			t.word(p.Exp.Word, true)
 			t.str(")")
 		case syntax.RemSmallPrefix, syntax.RemLargePrefix, syntax.RemSmallSuffix, syntax.RemLargeSuffix: // a#a a##a a%a a%%a
 			isPath := strings.HasSuffix(param, "PATH")
