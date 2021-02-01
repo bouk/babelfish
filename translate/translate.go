@@ -85,6 +85,10 @@ func (t *Translator) stmt(s *syntax.Stmt) {
 			t.str("<(echo ")
 			t.word(r.Hdoc, true)
 			t.str("| psub)")
+		case syntax.WordHdoc:
+			t.str("<(echo ")
+			t.word(r.Word, true)
+			t.str("| psub)")
 		default:
 			unsupported(s)
 		}

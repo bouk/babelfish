@@ -1,8 +1,9 @@
 package translate
 
 import (
+	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"mvdan.cc/sh/v3/syntax"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -15,8 +16,9 @@ func TestEscapedString(t *testing.T) {
 }
 
 func equal(t testing.TB, wanted, actual interface{}) {
-	if !reflect.DeepEqual(wanted, actual) {
-		t.Errorf("%v != %v", wanted, actual)
+	if diff := cmp.Diff(wanted, actual); diff != "" {
+		t.Errorf("%s", diff)
+		fmt.Println(actual)
 	}
 }
 
@@ -35,6 +37,11 @@ func TestParse(t *testing.T) {
 			name:     "test.sh",
 			in:       testFile,
 			expected: testExpected,
+		},
+		{
+			name:     "command-not-found.sh",
+			in:       nixIndexFile,
+			expected: nixIndexExpected,
 		},
 		{
 			name: "java home",
@@ -87,105 +94,105 @@ CHRUBY_VERSION="0.3.9"
 RUBIES=()
 
 for dir in "$PREFIX/opt/rubies" "$HOME/.rubies"; do
-	[[ -d "$dir" && -n "$(ls -A "$dir")" ]] && RUBIES+=("$dir"/*)
+  [[ -d "$dir" && -n "$(ls -A "$dir")" ]] && RUBIES+=("$dir"/*)
 done
 unset dir
 
 function chruby_reset()
 {
-	[[ -z "$RUBY_ROOT" ]] && return
+  [[ -z "$RUBY_ROOT" ]] && return
 
-	PATH=":$PATH:"; PATH="${PATH//:$RUBY_ROOT\/bin:/:}"
-	[[ -n "$GEM_ROOT" ]] && PATH="${PATH//:$GEM_ROOT\/bin:/:}"
+  PATH=":$PATH:"; PATH="${PATH//:$RUBY_ROOT\/bin:/:}"
+  [[ -n "$GEM_ROOT" ]] && PATH="${PATH//:$GEM_ROOT\/bin:/:}"
 
-	if (( UID != 0 )); then
-		[[ -n "$GEM_HOME" ]] && PATH="${PATH//:$GEM_HOME\/bin:/:}"
+  if (( UID != 0 )); then
+    [[ -n "$GEM_HOME" ]] && PATH="${PATH//:$GEM_HOME\/bin:/:}"
 
-		GEM_PATH=":$GEM_PATH:"
-		[[ -n "$GEM_HOME" ]] && GEM_PATH="${GEM_PATH//:$GEM_HOME:/:}"
-		[[ -n "$GEM_ROOT" ]] && GEM_PATH="${GEM_PATH//:$GEM_ROOT:/:}"
-		GEM_PATH="${GEM_PATH#:}"; GEM_PATH="${GEM_PATH%:}"
+    GEM_PATH=":$GEM_PATH:"
+    [[ -n "$GEM_HOME" ]] && GEM_PATH="${GEM_PATH//:$GEM_HOME:/:}"
+    [[ -n "$GEM_ROOT" ]] && GEM_PATH="${GEM_PATH//:$GEM_ROOT:/:}"
+    GEM_PATH="${GEM_PATH#:}"; GEM_PATH="${GEM_PATH%:}"
 
-		unset GEM_HOME
-		[[ -z "$GEM_PATH" ]] && unset GEM_PATH
-	fi
+    unset GEM_HOME
+    [[ -z "$GEM_PATH" ]] && unset GEM_PATH
+  fi
 
-	PATH="${PATH#:}"; PATH="${PATH%:}"
-	unset RUBY_ROOT RUBY_ENGINE RUBY_VERSION RUBYOPT GEM_ROOT
-	hash -r
+  PATH="${PATH#:}"; PATH="${PATH%:}"
+  unset RUBY_ROOT RUBY_ENGINE RUBY_VERSION RUBYOPT GEM_ROOT
+  hash -r
 }
 
 function chruby_use()
 {
-	if [[ ! -x "$1/bin/ruby" ]]; then
-		echo "chruby: $1/bin/ruby not executable" >&2
-		return 1
-	fi
+  if [[ ! -x "$1/bin/ruby" ]]; then
+    echo "chruby: $1/bin/ruby not executable" >&2
+    return 1
+  fi
 
-	[[ -n "$RUBY_ROOT" ]] && chruby_reset
+  [[ -n "$RUBY_ROOT" ]] && chruby_reset
 
-	export RUBY_ROOT="$1"
-	export RUBYOPT="$2"
-	export PATH="$RUBY_ROOT/bin:$PATH"
+  export RUBY_ROOT="$1"
+  export RUBYOPT="$2"
+  export PATH="$RUBY_ROOT/bin:$PATH"
 
-	eval "$(RUBYGEMS_GEMDEPS="" "$RUBY_ROOT/bin/ruby" - <<EOF
+  eval "$(RUBYGEMS_GEMDEPS="" "$RUBY_ROOT/bin/ruby" - <<EOF
 puts "export RUBY_ENGINE=#{Object.const_defined?(:RUBY_ENGINE) ? RUBY_ENGINE : 'ruby'};"
 puts "export RUBY_VERSION=#{RUBY_VERSION};"
 begin; require 'rubygems'; puts "export GEM_ROOT=#{Gem.default_dir.inspect};"; rescue LoadError; end
 EOF
 )"
-	export PATH="${GEM_ROOT:+$GEM_ROOT/bin:}$PATH"
+  export PATH="${GEM_ROOT:+$GEM_ROOT/bin:}$PATH"
 
-	if (( UID != 0 )); then
-		export GEM_HOME="$HOME/.gem/$RUBY_ENGINE/$RUBY_VERSION"
-		export GEM_PATH="$GEM_HOME${GEM_ROOT:+:$GEM_ROOT}${GEM_PATH:+:$GEM_PATH}"
-		export PATH="$GEM_HOME/bin:$PATH"
-	fi
+  if (( UID != 0 )); then
+    export GEM_HOME="$HOME/.gem/$RUBY_ENGINE/$RUBY_VERSION"
+    export GEM_PATH="$GEM_HOME${GEM_ROOT:+:$GEM_ROOT}${GEM_PATH:+:$GEM_PATH}"
+    export PATH="$GEM_HOME/bin:$PATH"
+  fi
 
-	hash -r
+  hash -r
 }
 
 function chruby()
 {
-	case "$1" in
-		-h|--help)
-			echo "usage: chruby [RUBY|VERSION|system] [RUBYOPT...]"
-			;;
-		-V|--version)
-			echo "chruby: $CHRUBY_VERSION"
-			;;
-		"")
-			local dir ruby
-			for dir in "${RUBIES[@]}"; do
-				dir="${dir%%/}"; ruby="${dir##*/}"
-				if [[ "$dir" == "$RUBY_ROOT" ]]; then
-					echo " * ${ruby} ${RUBYOPT}"
-				else
-					echo "   ${ruby}"
-				fi
+  case "$1" in
+    -h|--help)
+      echo "usage: chruby [RUBY|VERSION|system] [RUBYOPT...]"
+      ;;
+    -V|--version)
+      echo "chruby: $CHRUBY_VERSION"
+      ;;
+    "")
+      local dir ruby
+      for dir in "${RUBIES[@]}"; do
+        dir="${dir%%/}"; ruby="${dir##*/}"
+        if [[ "$dir" == "$RUBY_ROOT" ]]; then
+          echo " * ${ruby} ${RUBYOPT}"
+        else
+          echo "   ${ruby}"
+        fi
 
-			done
-			;;
-		system) chruby_reset ;;
-		*)
-			local dir ruby match
-			for dir in "${RUBIES[@]}"; do
-				dir="${dir%%/}"; ruby="${dir##*/}"
-				case "$ruby" in
-					"$1")	match="$dir" && break ;;
-					*"$1"*)	match="$dir" ;;
-				esac
-			done
+      done
+      ;;
+    system) chruby_reset ;;
+    *)
+      local dir ruby match
+      for dir in "${RUBIES[@]}"; do
+        dir="${dir%%/}"; ruby="${dir##*/}"
+        case "$ruby" in
+          "$1")  match="$dir" && break ;;
+          *"$1"*)  match="$dir" ;;
+        esac
+      done
 
-			if [[ -z "$match" ]]; then
-				echo "chruby: unknown Ruby: $1" >&2
-				return 1
-			fi
+      if [[ -z "$match" ]]; then
+        echo "chruby: unknown Ruby: $1" >&2
+        return 1
+      fi
 
-			shift
-			chruby_use "$match" "$*"
-			;;
-	esac
+      shift
+      chruby_use "$match" "$*"
+      ;;
+  esac
 }
 `
 
@@ -295,7 +302,7 @@ echo 123 | source
 cat <(echo 123)
 cat < test.bash
 cool() {
-	cat | cat
+  cat | cat
 }
 echo $(cat test.bash | cool | (cool | cool | ( echo 'cool' | cool)))
 test -e /var/file.sh && source /var/file.sh
@@ -303,11 +310,11 @@ if [ -z "$SSH_AUTH_SOCK" ]; then
   export SSH_AUTH_SOCK=$(/bin/gpgconf --list-dirs agent-ssh-socket)
 fi
 if [ -d "/share/gsettings-schemas/name" ]; then
-	export whatevs=$whatevs${whatevs:+:}/share/gsettings-schemas/name
+  export whatevs=$whatevs${whatevs:+:}/share/gsettings-schemas/name
 elif false; then
-	true
+  true
 else
-	true
+  true
 fi
 echo ${cool+a}
 echo ${cool:+a}
@@ -318,16 +325,16 @@ for i in a b c ; do
   if [ -d "$i/lib/aspell" ]; then
     export ASPELL_CONF="dict-dir $i/lib/aspell"
   fi
-	echo yes
+  echo yes
 done
 time sleep 1
 while true; do
-	echo 1
-	echo 2
+  echo 1
+  echo 2
 done
 until true; do
-	echo 1
-	echo 2
+  echo 1
+  echo 2
 done
 call $me
 echo ${#@}
@@ -396,4 +403,190 @@ set a (ok | string collect; or echo)
 set a (ok | string collect; or echo)
 /bin/babelfish < /etc/bashrc | source
 test 123 != 0
+`
+
+const nixIndexFile = `#!/bin/sh
+
+# for bash 4
+# this will be called when a command is entered
+# but not found in the user’s path + environment
+command_not_found_handle () {
+
+    # TODO: use "command not found" gettext translations
+
+    # taken from http://www.linuxjournal.com/content/bash-command-not-found
+    # - do not run when inside Midnight Commander or within a Pipe
+    if [ -n "${MC_SID-}" ] || ! [ -t 1 ]; then
+        >&2 echo "$1: command not found"
+        return 127
+    fi
+
+    toplevel=nixpkgs # nixpkgs should always be available even in NixOS
+    cmd=$1
+    attrs=$(@out@/bin/nix-locate --minimal --no-group --type x --type s --top-level --whole-name --at-root "/bin/$cmd")
+    len=$(echo -n "$attrs" | grep -c "^")
+
+    case $len in
+        0)
+            >&2 echo "$cmd: command not found"
+            ;;
+        1)
+            # if only 1 package provides this, then we can invoke it
+            # without asking the users if they have opted in with one
+            # of 2 environment variables
+
+            # they are based on the ones found in
+            # command-not-found.sh:
+
+            #   NIX_AUTO_INSTALL : install the missing command into the
+            #                      user’s environment
+            #   NIX_AUTO_RUN     : run the command transparently inside of
+            #                      nix shell
+
+            # these will not return 127 if they worked correctly
+
+            if ! [ -z "${NIX_AUTO_INSTALL-}" ]; then
+                >&2 cat <<EOF
+The program '$cmd' is currently not installed. It is provided by
+the package '$toplevel.$attrs', which I will now install for you.
+EOF
+                nix-env -iA $toplevel.$attrs
+                if [ "$?" -eq 0 ]; then
+                    $@ # TODO: handle pipes correctly if AUTO_RUN/INSTALL is possible
+                    return $?
+                else
+                    >&2 cat <<EOF
+Failed to install $toplevel.attrs.
+$cmd: command not found
+EOF
+                fi
+            elif ! [ -z "${NIX_AUTO_RUN-}" ]; then
+                nix-build --no-out-link -A $attrs "<$toplevel>"
+                if [ "$?" -eq 0 ]; then
+                    # how nix-shell handles commands is weird
+                    # $(echo $@) is need to handle this
+                    nix-shell -p $attrs --run "$(echo $@)"
+                    return $?
+                else
+                    >&2 cat <<EOF
+Failed to install $toplevel.attrs.
+$cmd: command not found
+EOF
+                fi
+            else
+                >&2 cat <<EOF
+The program '$cmd' is currently not installed. You can install it
+by typing:
+  nix-env -iA $toplevel.$attrs
+EOF
+            fi
+            ;;
+        *)
+            >&2 cat <<EOF
+The program '$cmd' is currently not installed. It is provided by
+several packages. You can install it by typing one of the following:
+EOF
+
+            # ensure we get each element of attrs
+            # in a cross platform way
+            while read attr; do
+                >&2 echo "  nix-env -iA $toplevel.$attr"
+            done <<< "$attrs"
+            ;;
+    esac
+
+    return 127 # command not found should always exit with 127
+}
+
+# for zsh...
+# we just pass it to the bash handler above
+# apparently they work identically
+command_not_found_handler () {
+    command_not_found_handle $@
+    return $?
+}`
+
+const nixIndexExpected = `#!/bin/sh
+# for bash 4
+# this will be called when a command is entered
+# but not found in the user’s path + environment
+function command_not_found_handle
+  # TODO: use "command not found" gettext translations
+  # taken from http://www.linuxjournal.com/content/bash-command-not-found
+  # - do not run when inside Midnight Commander or within a Pipe
+  if [ -n (set -q MC_SID && echo "$MC_SID" || echo '') ] || ! [ -t 1 ]
+    echo $argv[1]': command not found' >&2
+    return 127
+  end
+  # nixpkgs should always be available even in NixOS
+  set toplevel 'nixpkgs'
+  set cmd $argv[1]
+  set attrs (@out@/bin/nix-locate --minimal --no-group --type x --type s --top-level --whole-name --at-root '/bin/'"$cmd" | string collect; or echo)
+  set len (echo -n "$attrs" | grep -c '^' | string collect; or echo)
+  switch "$len"
+  case '0'
+    echo "$cmd"': command not found' >&2
+  case '1'
+    # if only 1 package provides this, then we can invoke it
+    # without asking the users if they have opted in with one
+    # of 2 environment variables
+    # they are based on the ones found in
+    # command-not-found.sh:
+    #   NIX_AUTO_INSTALL : install the missing command into the
+    #                      user’s environment
+    #   NIX_AUTO_RUN     : run the command transparently inside of
+    #                      nix shell
+    # these will not return 127 if they worked correctly
+    if ! [ -z (set -q NIX_AUTO_INSTALL && echo "$NIX_AUTO_INSTALL" || echo '') ]
+      cat >&2 <(echo 'The program \''"$cmd"'\' is currently not installed. It is provided by
+the package \''"$toplevel"'.'"$attrs"'\', which I will now install for you.
+'| psub)
+      nix-env -iA $toplevel.$attrs
+      if [ "$status" -eq 0 ]
+        # TODO: handle pipes correctly if AUTO_RUN/INSTALL is possible
+        $argv
+        return $status
+      else
+        cat >&2 <(echo 'Failed to install '"$toplevel"'.attrs.
+'"$cmd"': command not found
+'| psub)
+      end
+    else if ! [ -z (set -q NIX_AUTO_RUN && echo "$NIX_AUTO_RUN" || echo '') ]
+      nix-build --no-out-link -A $attrs '<'"$toplevel"'>'
+      if [ "$status" -eq 0 ]
+        # how nix-shell handles commands is weird
+        # $(echo $@) is need to handle this
+        nix-shell -p $attrs --run (echo $argv | string collect; or echo)
+        return $status
+      else
+        cat >&2 <(echo 'Failed to install '"$toplevel"'.attrs.
+'"$cmd"': command not found
+'| psub)
+      end
+    else
+      cat >&2 <(echo 'The program \''"$cmd"'\' is currently not installed. You can install it
+by typing:
+  nix-env -iA '"$toplevel"'.'"$attrs"'
+'| psub)
+    end
+  case '*'
+    cat >&2 <(echo 'The program \''"$cmd"'\' is currently not installed. It is provided by
+several packages. You can install it by typing one of the following:
+'| psub)
+    # ensure we get each element of attrs
+    # in a cross platform way
+    while read attr
+      echo '  nix-env -iA '"$toplevel"'.'"$attr" >&2
+    end <(echo "$attrs"| psub)
+  end
+  # command not found should always exit with 127
+  return 127
+end
+# for zsh...
+# we just pass it to the bash handler above
+# apparently they work identically
+function command_not_found_handler
+  command_not_found_handle $argv
+  return $status
+end
 `
