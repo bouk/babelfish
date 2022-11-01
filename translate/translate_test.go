@@ -66,6 +66,12 @@ export NIX_PATH="$HOME/.nix-defexpr/channels${NIX_PATH:+:$NIX_PATH}"`,
 set -gx NIX_PATH "$HOME"'/.nix-defexpr/channels'(test -n "$NIX_PATH" && echo ':'"$NIX_PATH" || echo)
 `,
 		},
+		{
+			name: "unset function and variable",
+			in:   "unset -f foo -v bar",
+			expected: `functions -e foo; set -e bar
+`,
+		},
 	}
 
 	for _, test := range tests {

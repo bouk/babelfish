@@ -451,10 +451,25 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 		case "shift":
 			t.str("set -e argv[1]")
 		case "unset":
-			t.str("set -e ")
-			for i, a := range c.Args[1:] {
-				if i > 0 {
-					t.str("; set -e ")
+			isFirst := true
+			unsetFunc := false
+			for _, a := range c.Args[1:] {
+				aStr, _ := lit(a)
+				if aStr == "-f" {
+					unsetFunc = true
+					continue
+				} else if aStr == "-v" {
+					unsetFunc = false
+					continue
+				}
+				if !isFirst {
+					t.str("; ")
+				}
+				isFirst = false
+				if unsetFunc {
+					t.str("functions -e ")
+				} else {
+					t.str("set -e ")
 				}
 				t.word(a, false)
 			}
