@@ -1,3 +1,5 @@
+bou.ke/babelfish v1.1.0 h1:tbm1ILNkK9Un4+CE/ge9vdVHoxbJGWiM3LWZh64XJB8=
+bou.ke/babelfish v1.1.0/go.mod h1:3lWBLbWGUmILo8PvxWUS3qc/0v0zYyy52EJW4p+A+Sc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/go-cmp v0.5.4 h1:L8R9j+yAqZuZjsqh/z+F1NCffTKKLShY6zXTItVIZ8M=
