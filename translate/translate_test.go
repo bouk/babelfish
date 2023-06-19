@@ -72,6 +72,13 @@ set -gx NIX_PATH "$HOME"'/.nix-defexpr/channels'(test -n "$NIX_PATH" && echo ':'
 			expected: `functions -e foo; set -e bar
 `,
 		},
+		{name: "hash in name",
+			in: `a=nixpkgs
+nix run $a#hello
+`, expected: `set a 'nixpkgs'
+nix run $a#hello
+`,
+		},
 	}
 
 	for _, test := range tests {
