@@ -12,7 +12,7 @@ Because I got annoyed by having to use [fish-foreign-env](https://github.com/oh-
 
 ## Install
 
-`GO111MODULE=on go get bou.ke/babelfish`
+`GO111MODULE=on go install bou.ke/babelfish@latest`
 
 ## Example
 
