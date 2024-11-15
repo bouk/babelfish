@@ -235,6 +235,7 @@ function chruby_reset
   set -e RUBY_ROOT; set -e RUBY_ENGINE; set -e RUBY_VERSION; set -e RUBYOPT; set -e GEM_ROOT
   true
 end
+
 function chruby_use
   if test ! -x $argv[1]'/bin/ruby'
     echo 'chruby: '$argv[1]'/bin/ruby not executable' >&2
@@ -256,6 +257,7 @@ begin; require \'rubygems\'; puts "export GEM_ROOT=#{Gem.default_dir.inspect};";
   end
   true
 end
+
 function chruby
   switch $argv[1]
   case '-h' '--help'
@@ -376,6 +378,7 @@ cat <test.bash
 function cool
   cat | cat
 end
+
 echo (cat test.bash | cool | fish -c 'cool | cool | fish -c \'echo \\\'cool\\\' | cool\'')
 test -e /var/file.sh && /bin/babelfish < /var/file.sh | source
 if [ -z "$SSH_AUTH_SOCK" ]
@@ -595,6 +598,7 @@ several packages. You can install it by typing one of the following:
   # command not found should always exit with 127
   return 127
 end
+
 # for zsh...
 # we just pass it to the bash handler above
 # apparently they work identically
