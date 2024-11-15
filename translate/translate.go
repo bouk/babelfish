@@ -46,9 +46,16 @@ func (t *Translator) File(f *syntax.File) (err error) {
 		}
 	}()
 
-	for _, stmt := range f.Stmts {
+	for i, stmt := range f.Stmts {
 		t.stmt(stmt)
 		t.nl()
+
+		isLast := i == len(f.Stmts)-1
+		_, ok := stmt.Cmd.(*syntax.FuncDecl)
+
+		if ok && !isLast {
+			t.nl()
+		}
 	}
 
 	for _, comment := range f.Last {
