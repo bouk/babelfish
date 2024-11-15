@@ -201,7 +201,7 @@ func (t *Translator) command(c syntax.Command) {
 					t.word(w, false)
 				}
 			} else {
-				t.str(" in \"$argv\"")
+				t.str(" in $argv")
 			}
 
 		default:
