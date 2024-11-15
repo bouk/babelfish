@@ -709,9 +709,7 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 			if err != nil {
 				unsupported(p)
 			}
-      if strings.HasPrefix(expr, "(?s)") {
-        expr = expr[4:]
-      }
+			expr = strings.TrimPrefix(expr, "(?s)")
 			dot := ""
 			if isPath && (suffix && strings.HasSuffix(expr, ":") || !suffix && strings.HasPrefix(expr, ":")) {
 				dot = `\.?`
