@@ -424,6 +424,19 @@ func (t *Translator) assign(prefix string, a *syntax.Assign) {
 	}
 }
 
+func (t *Translator) parseSetExp(args []*syntax.Word) bool {
+	if len(args) < 2 {
+		return false
+	}
+	for _, arg := range args[1:] {
+		flag, _ := lit(arg)
+		if !strings.HasPrefix(flag, "-") {
+			return false
+		}
+	}
+	return true
+}
+
 func (t *Translator) callExpr(c *syntax.CallExpr) {
 	if len(c.Args) == 0 {
 		// assignment
@@ -447,7 +460,12 @@ func (t *Translator) callExpr(c *syntax.CallExpr) {
 
 		first := c.Args[0]
 		l, _ := lit(first)
+
 		switch l {
+		case "set":
+			if t.parseSetExp(c.Args) {
+				return
+			}
 		case "shift":
 			t.str("set -e argv[1]")
 		case "unset":
