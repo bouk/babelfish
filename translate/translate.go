@@ -189,20 +189,25 @@ func (t *Translator) command(c syntax.Command) {
 			unsupported(c)
 		}
 		t.str("for ")
+
 		switch l := c.Loop.(type) {
 		case *syntax.WordIter:
-			t.printf("%s in", l.Name.Value)
+			t.printf("%s", l.Name.Value)
+
 			if l.InPos.IsValid() {
+				t.str(" in")
 				for _, w := range l.Items {
 					t.str(" ")
 					t.word(w, false)
 				}
 			} else {
-				unsupported(c)
+				t.str(" in $argv")
 			}
+
 		default:
 			unsupported(c)
 		}
+
 		t.indent()
 		t.body(c.Do...)
 		t.outdent()
