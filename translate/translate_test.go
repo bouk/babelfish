@@ -378,7 +378,6 @@ cat <test.bash
 function cool
   cat | cat
 end
-
 echo (cat test.bash | cool | fish -c 'cool | cool | fish -c \'echo \\\'cool\\\' | cool\'')
 test -e /var/file.sh && /bin/babelfish < /var/file.sh | source
 if [ -z "$SSH_AUTH_SOCK" ]
