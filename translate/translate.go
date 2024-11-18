@@ -54,7 +54,12 @@ func (t *Translator) File(f *syntax.File) (err error) {
 		_, ok := stmt.Cmd.(*syntax.FuncDecl)
 
 		if ok && !isLast {
-			t.nl()
+			currentEnd := stmt.End()
+			nextPos := f.Stmts[i+1].Pos()
+
+			if currentEnd.Line() < nextPos.Line()-1 {
+				t.nl()
+			}
 		}
 	}
 
