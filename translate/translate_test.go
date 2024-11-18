@@ -340,6 +340,10 @@ for i in a b c ; do
   fi
   echo yes
 done
+for cmd
+do
+  echo "$cmd"
+done
 time sleep 1
 while true; do
   echo 1
@@ -398,6 +402,9 @@ for i in a b c
     set -gx ASPELL_CONF 'dict-dir '"$i"'/lib/aspell'
   end
   echo yes
+end
+for cmd in $argv
+  echo "$cmd"
 end
 time sleep 1
 while true
