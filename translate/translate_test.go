@@ -333,6 +333,8 @@ echo ${cool+a}
 echo ${cool:+a}
 echo ${cool-a}
 echo ${cool:-a}
+set -Cefu
+set -- x y z
 unset ASPELL_CONF
 for i in a b c ; do
   if [ -d "$i/lib/aspell" ]; then
@@ -392,6 +394,8 @@ echo (set -q cool && echo 'a' || echo)
 echo (test -n "$cool" && echo 'a' || echo)
 echo (set -q cool && echo "$cool" || echo 'a')
 echo (test -n "$cool" && echo "$cool" || echo 'a')
+
+set argv x y z
 set -e ASPELL_CONF
 for i in a b c
   if [ -d "$i"'/lib/aspell' ]
