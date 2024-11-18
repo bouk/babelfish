@@ -50,7 +50,10 @@ func (t *Translator) File(f *syntax.File) (err error) {
 		t.stmt(stmt)
 		t.nl()
 
-		if i < len(f.Stmts)-1 {
+		isLast := i == len(f.Stmts)-1
+		_, ok := stmt.Cmd.(*syntax.FuncDecl)
+
+		if ok && !isLast {
 			currentEnd := stmt.End()
 			nextPos := f.Stmts[i+1].Pos()
 
