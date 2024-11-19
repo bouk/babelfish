@@ -46,9 +46,21 @@ func (t *Translator) File(f *syntax.File) (err error) {
 		}
 	}()
 
-	for _, stmt := range f.Stmts {
+	for i, stmt := range f.Stmts {
 		t.stmt(stmt)
 		t.nl()
+
+		isLast := i == len(f.Stmts)-1
+		_, ok := stmt.Cmd.(*syntax.FuncDecl)
+
+		if ok && !isLast {
+			currentEnd := stmt.End()
+			nextPos := f.Stmts[i+1].Pos()
+
+			if currentEnd.Line() < nextPos.Line()-1 {
+				t.nl()
+			}
+		}
 	}
 
 	for _, comment := range f.Last {
