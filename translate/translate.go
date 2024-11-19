@@ -431,13 +431,11 @@ func (t *Translator) parseSetExpr(args []*syntax.Word) bool {
 
 	next, _ := lit(args[1])
 
-	if next == "--" {
-		if len(args) > 2 {
-			t.str("set argv")
-			for _, arg := range args[2:] {
-				t.str(" ")
-				t.word(arg, false)
-			}
+	if (next == "--" || next == "-") {
+		t.str("set argv")
+		for _, arg := range args[2:] {
+			t.str(" ")
+			t.word(arg, false)
 		}
 		return true
 	}
