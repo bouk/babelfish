@@ -633,7 +633,8 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 	}
 
 	// $#, ${#} -> (count $argv)
-	if param == "#" || param == "$#" || param == "${#}" {
+	switch param {
+	case "#", "$#", "${#}":
 		t.printf("(count $argv)")
 		return
 	}
