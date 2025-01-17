@@ -79,6 +79,60 @@ nix run $a#hello
 nix run $a#hello
 `,
 		},
+		{
+			name: "stderr follows stdout redirect",
+			in:   `echo 123 > /dev/null 2>&1`,
+			expected: `echo 123 >/dev/null 2>&1
+`,
+		},
+		{
+			name: "combined output redirect",
+			in:   `echo 123 &> /dev/null`,
+			expected: `echo 123 &>/dev/null
+`,
+		},
+		{
+			name: "combined output append",
+			in:   `echo 123 &>> /tmp/log`,
+			expected: `echo 123 &>>/tmp/log
+`,
+		},
+		{
+			name: "redirect after stderr to stdout",
+			in:   `echo 123 2>&1 > /dev/null`,
+			expected: `echo 123 2>&1 >/dev/null
+`,
+		},
+		{
+			name: "stderr follows stdout append",
+			in:   `echo 123 >> /dev/null 2>&1`,
+			expected: `echo 123 >>/dev/null 2>&1
+`,
+		},
+		{
+			name: "stderr only",
+			in:   `echo 123 2> /dev/null`,
+			expected: `echo 123 2>/dev/null
+`,
+		},
+		{
+			name: "stderr only append",
+			in:   `echo 123 2>> /dev/null`,
+			expected: `echo 123 2>>/dev/null
+`,
+		},
+		{
+			name: "separate output files",
+			in:   `echo 123 > /dev/null 2> /dev/stderr`,
+			expected: `echo 123 >/dev/null 2>/dev/stderr
+`,
+		},
+		{
+			name: "separate output files append",
+			in:   `echo 123 >> /dev/null 2>> /dev/stderr`,
+			expected: `echo 123 >>/dev/null 2>>/dev/stderr
+`,
+		},
 	}
 
 	for _, test := range tests {
