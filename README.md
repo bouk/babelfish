@@ -12,7 +12,17 @@ Because I got annoyed by having to use [fish-foreign-env](https://github.com/oh-
 
 ## Install
 
-`go install bou.ke/babelfish@latest`
+If you have Homebrew, just run:
+
+```shell
+brew install babelfish
+```
+
+Else:
+
+```shell
+go install bou.ke/babelfish@latest
+```
 
 ## Example
 
