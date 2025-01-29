@@ -631,6 +631,14 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 		t.str(expr)
 		return
 	}
+
+	// $#, ${#} -> (count $argv)
+	switch param {
+	case "#", "$#", "${#}":
+		t.printf("(count $argv)")
+		return
+	}
+
 	if argvRe.MatchString(param) {
 		t.printf(`$argv[%s]`, param)
 		return
@@ -643,6 +651,7 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 		}
 		param = spec
 	}
+
 	switch {
 	case p.Excl: // ${!a}
 		unsupported(p)
@@ -651,6 +660,8 @@ func (t *Translator) paramExp(p *syntax.ParamExp, quoted bool) {
 		switch p.Param.Value {
 		case "@", "*":
 			index = &syntax.Word{Parts: []syntax.WordPart{p.Param}}
+			t.printf("(count $argv)")
+			return
 		}
 		if index != nil {
 			if word, ok := index.(*syntax.Word); ok {

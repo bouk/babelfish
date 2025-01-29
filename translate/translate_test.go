@@ -356,6 +356,8 @@ until true; do
   echo 2
 done
 call $me
+echo $#
+echo ${#}
 echo ${#@}
 echo ${#cool[@]}
 echo ${#cool}
@@ -418,6 +420,8 @@ while not true
   echo 2
 end
 call $me
+echo (count $argv)
+echo (count $argv)
 echo (count $argv)
 echo (count $cool)
 echo (string length "$cool")
